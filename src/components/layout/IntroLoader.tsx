@@ -28,13 +28,8 @@ export function IntroLoader() {
       return;
     }
 
-    const seen = sessionStorage.getItem("tsg-intro-seen");
-    if (!seen) {
-      sessionStorage.setItem("tsg-intro-seen", "1");
-      setShow(true);
-    } else {
-      setShow(false);
-    }
+    // Selalu tampilkan animasi intro setiap kali masuk/refresh halaman Home
+    setShow(true);
   }, [pathname]);
 
   useEffect(() => {
