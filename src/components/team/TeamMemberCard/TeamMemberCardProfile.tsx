@@ -35,7 +35,7 @@ export function TeamMemberCardProfile({ member, isExpanded }: TeamMemberCardProf
 
         {/* Social links overlay on hover */}
         {socialEntries.length > 0 && (
-          <div className="absolute bottom-0 left-0 right-0 flex translate-y-2 items-center justify-center gap-2 p-4 opacity-0 transition-all duration-200 ease-out group-hover/profile:translate-y-0 group-hover/profile:opacity-100 z-20">
+          <div className="absolute bottom-2 left-0 right-0 flex translate-y-2 items-center justify-center gap-2 p-4 opacity-0 transition-all duration-200 ease-out group-hover/profile:translate-y-0 group-hover/profile:opacity-100 z-20">
             {socialEntries.map(([platform, href]) => {
               const Icon = socialIcons[platform];
               return (
@@ -56,7 +56,7 @@ export function TeamMemberCardProfile({ member, isExpanded }: TeamMemberCardProf
       </div>
 
       {hasAchievements && !isExpanded && (
-        <div className="absolute -bottom-4 left-1/2 z-20 flex -translate-x-1/2 gap-1.5 transition-opacity duration-200 group-hover/profile:opacity-0">
+        <div className="absolute bottom-2 left-1/2 z-20 flex -translate-x-1/2 gap-1.5 transition-all duration-300 ease-out group-hover/profile:-translate-y-7 group-hover/profile:opacity-80">
           {member.achievements.map((ach, i) => (
             <Tooltip key={i} label={ach.title}>
               <motion.span
