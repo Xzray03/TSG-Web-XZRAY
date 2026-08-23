@@ -16,7 +16,8 @@ const socialIcons = {
 } as const;
 
 export function TeamMemberCardProfile({ member, isExpanded }: TeamMemberCardProfileProps) {
-  const hasAchievements = member.achievements.length > 0;
+  const achievements = member.achievements;
+  const hasAchievements = achievements.length > 0;
   const socialEntries = Object.entries(member.socials).filter(
     ([_, href]) => Boolean(href)
   ) as [keyof typeof socialIcons, string][];
@@ -56,25 +57,66 @@ export function TeamMemberCardProfile({ member, isExpanded }: TeamMemberCardProf
       </div>
 
       {hasAchievements && !isExpanded && (
-        <div className="absolute bottom-2 left-1/2 z-20 flex -translate-x-1/2 gap-1.5 transition-all duration-300 ease-out group-hover/profile:-translate-y-7 group-hover/profile:opacity-80">
-          {member.achievements.map((ach, i) => (
-            <Tooltip key={i} label={ach.title}>
-              <motion.span
-                initial={{ opacity: 0, scale: 0.5 }}
-                animate={{ opacity: 1, scale: 1 }}
-                transition={{ duration: 0.3, delay: 0.1 + i * 0.05 }}
-                className="glass-strong flex h-8 w-8 items-center justify-center overflow-hidden rounded-full border border-white/10"
-              >
-                <Image
-                  src={ach.icon}
-                  alt={ach.title}
-                  width={20}
-                  height={20}
-                  className="h-5 w-5 object-contain"
-                />
-              </motion.span>
-            </Tooltip>
-          ))}
+        <div className="absolute bottom-2 left-1/2 z-20 flex -translate-x-1/2 items-center gap-1.5">
+          {achievements.map((ach, i) => {
+            const count = achievements.length;
+            let initialX = 0;
+            let hoverX = 0;
+            let hoverY = 0;
+
+            if (count === 1) {
+              hoverY = -28;
+            } else if (count === 2) {
+              hoverX = i === 0 ? -22 : 22;
+              hoverY = -12;
+            } else if (count === 3) {
+              if (i === 0) {
+                hoverX = -26;
+                hoverY = -12;
+              } else if (i === 1) {
+                hoverX = 0;
+                hoverY = -28;
+              } else {
+                hoverX = 26;
+                hoverY = -12;
+              }
+            } else {
+              // 4 or more: spread evenly left and right
+              const mid = (count - 1) / 2;
+              const offsetIndex = i - mid;
+              hoverX = offsetIndex * 22;
+              hoverY = -12;
+            }
+
+            return (
+              <Tooltip key={i} label={ach.title}>
+                <motion.div
+                  initial={{ opacity: 0, scale: 0.5 }}
+                  animate={{ opacity: 1, scale: 1, x: initialX, y: 0 }}
+                  whileHover={{ scale: 1.1 }}
+                  transition={{ duration: 0.3, delay: 0.05 + i * 0.05 }}
+                  className="absolute bottom-0 left-1/2 -translate-x-1/2"
+                >
+                  <motion.div
+                    animate={{
+                      x: hoverX,
+                      y: hoverY,
+                    }}
+                    transition={{ duration: 0.3, ease: "easeOut" }}
+                    className="glass-strong flex h-8 w-8 items-center justify-center overflow-hidden rounded-full border border-white/10"
+                  >
+                    <Image
+                      src={ach.icon}
+                      alt={ach.title}
+                      width={20}
+                      height={20}
+                      className="h-5 w-5 object-contain"
+                    />
+                  </motion.div>
+                </motion.div>
+              </Tooltip>
+            );
+          })}
         </div>
       )}
     </div>
