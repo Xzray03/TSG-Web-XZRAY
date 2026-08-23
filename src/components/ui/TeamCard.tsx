@@ -26,7 +26,6 @@ export function TeamCard({ member, index }: TeamCardProps) {
   ][];
 
   const badge = member.badge ? badgeConfig[member.badge] : null;
-  const glowRgb = defaultTeamGlowRgb;
 
   return (
     <motion.div
@@ -37,14 +36,6 @@ export function TeamCard({ member, index }: TeamCardProps) {
       whileHover={{ y: -4 }}
       className="group relative h-full rounded-2xl"
     >
-      {/* Soft ambient glow behind the card */}
-      <motion.div
-        className="pointer-events-none absolute -inset-3 -z-10 rounded-3xl blur-xl"
-        style={{ backgroundColor: `rgba(${glowRgb},0.35)` }}
-        animate={{ opacity: [0.3, 0.7, 0.3] }}
-        transition={{ duration: 2.8, repeat: Infinity, ease: "easeInOut" }}
-      />
-
       {/* Badge icon if present */}
       {badge && (
         <span className="absolute right-3 top-3 z-30">
