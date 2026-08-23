@@ -1,5 +1,5 @@
 import { smartFetchWithCache } from "../cacheClient";
-import { urlForImage } from "./image";
+import { urlForImage } from "../image";
 import type { Project, ProjectStatus } from "@/types";
 import type { Image } from "sanity";
 
