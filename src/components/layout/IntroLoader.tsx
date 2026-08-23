@@ -5,14 +5,14 @@ import { useEffect, useState } from "react";
 import { usePathname } from "next/navigation";
 
 const WORDS = [
-  { id: "together", text: "Together", delay: 0.3 },
-  { id: "wemake", text: "We Make", delay: 1.8 },
-  { id: "abetter", text: "A Better", delay: 3.3 },
-  { id: "future", text: "Future", delay: 4.8 },
+  { id: "together", text: "Together", delay: 0.1 },
+  { id: "wemake", text: "We Make", delay: 0.3 },
+  { id: "abetter", text: "A Better", delay: 0.5 },
+  { id: "future", text: "Future", delay: 0.7 },
 ];
 
-const HOLD_AFTER_COMPLETE = 1800;
-const LAST_WORD_FINISH = 3000 + 1800;
+const HOLD_AFTER_COMPLETE = 800;
+const LAST_WORD_FINISH = 700 + 800;
 const TOTAL_DURATION = LAST_WORD_FINISH + HOLD_AFTER_COMPLETE;
 
 export function IntroLoader() {
@@ -65,7 +65,7 @@ export function IntroLoader() {
         animate={{ y: 0 }}
         exit={{ y: "-100%" }}
         transition={{
-          duration: 1.4,
+          duration: 0.8,
           ease: [0.22, 1, 0.36, 1],
         }}
         className="fixed inset-0 z-[99999] flex items-center justify-center overflow-hidden bg-[#020617]"
