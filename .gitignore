@@ -8,6 +8,8 @@ storage.json-wal
 /.pnp
 /.vscode
 .pnp.js
+pnpm-lock.yaml
+pnpm-workspace.yaml
 
 # testing
 /coverage
