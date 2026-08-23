@@ -39,8 +39,8 @@ export function TeamCard({ member, index }: TeamCardProps) {
       {/* Soft diffused Silver Crystal ambient glow behind the card */}
       <motion.div
         className="pointer-events-none absolute -inset-4 -z-10 rounded-3xl blur-2xl"
-        style={{ backgroundColor: "rgba(203, 213, 225, 0.12)" }}
-        animate={{ opacity: [0.2, 0.4, 0.2] }}
+        style={{ backgroundColor: "rgba(203, 213, 225, 0.3)" }}
+        animate={{ opacity: [0.35, 0.60, 0.35] }}
         transition={{ duration: 3.5, repeat: Infinity, ease: "easeInOut" }}
       />
 
