@@ -26,7 +26,7 @@ export function TeamCard({ member, index }: TeamCardProps) {
   ][];
 
   const badge = member.badge ? badgeConfig[member.badge] : null;
-  const glowRgb = badge ? badge.glowRgb : defaultTeamGlowRgb;
+  const glowRgb = defaultTeamGlowRgb;
 
   return (
     <motion.div
@@ -44,18 +44,6 @@ export function TeamCard({ member, index }: TeamCardProps) {
         animate={{ opacity: [0.3, 0.7, 0.3] }}
         transition={{ duration: 2.8, repeat: Infinity, ease: "easeInOut" }}
       />
-
-      {/* Rotating "aura" light sweeping around the border */}
-      <div className="pointer-events-none absolute -inset-[2px] -z-10 overflow-hidden rounded-2xl">
-        <motion.div
-          className="absolute inset-[-100%] blur-[3px]"
-          style={{
-            background: `conic-gradient(from 0deg, transparent 0deg, rgba(${glowRgb},0.95) 50deg, transparent 130deg, transparent 360deg)`,
-          }}
-          animate={{ rotate: 360 }}
-          transition={{ duration: 5, repeat: Infinity, ease: "linear" }}
-        />
-      </div>
 
       {/* Badge icon if present */}
       {badge && (
