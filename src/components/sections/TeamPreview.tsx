@@ -2,7 +2,7 @@
 
 import { motion } from "framer-motion";
 import { ArrowRight, Users } from "lucide-react";
-import { TeamCard } from "@/components/ui/TeamCard";
+import { TeamMemberCard } from "@/components/team/TeamMemberCard";
 import { Button } from "@/components/ui/Button";
 import type { TeamMember } from "@/types";
 
@@ -42,9 +42,9 @@ export function TeamPreview({ members }: TeamPreviewProps) {
           {featured.map((member, index) => (
             <div
               key={member.id}
-              className="w-[calc(50%-0.75rem)] lg:w-[calc(25%-1.125rem)]"
+              className="w-full sm:w-[calc(50%-0.75rem)] lg:w-[calc(25%-1.125rem)]"
             >
-              <TeamCard member={member} index={index} />
+              <TeamMemberCard member={member} index={index} />
             </div>
           ))}
         </div>
