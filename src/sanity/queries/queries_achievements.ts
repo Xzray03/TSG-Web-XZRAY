@@ -1,4 +1,4 @@
-import { smartFetchWithCache } from "./cacheClient";
+import { smartFetchWithCache } from "../cacheClient";
 import type { AchievementItem } from "@/types";
 
 interface SanityAchievement {

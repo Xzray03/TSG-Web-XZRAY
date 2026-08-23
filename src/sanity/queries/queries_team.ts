@@ -1,4 +1,4 @@
-import { smartFetchWithCache } from "./cacheClient";
+import { smartFetchWithCache } from "../cacheClient";
 import { urlForImage } from "./image";
 import type { TeamMember, TeamBadge, TeamCategory } from "@/types";
 import type { Image } from "sanity";
