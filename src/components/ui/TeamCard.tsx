@@ -50,10 +50,7 @@ export function TeamCard({ member, index }: TeamCardProps) {
         <span className="absolute right-3 top-3 z-30">
           <Tooltip label={badge.label} position="bottom">
             <span
-              className={cn(
-                "flex h-8 w-8 items-center justify-center rounded-full shadow-lg",
-                badge.iconBg
-              )}
+              className="flex h-8 w-8 items-center justify-center rounded-full bg-slate-900/60 text-slate-200 backdrop-blur-md"
             >
               <badge.icon className="h-4 w-4" strokeWidth={2.5} />
             </span>
