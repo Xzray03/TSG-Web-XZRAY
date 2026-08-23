@@ -1,7 +1,7 @@
 import Link from "next/link";
 import Image from "next/image";
 import { motion, AnimatePresence } from "framer-motion";
-import { Menu, X, Zap, ChevronDown } from "lucide-react";
+import { Menu, X, Zap } from "lucide-react";
 import { navLinks } from "@/data/nav";
 import { EXTERNAL_URLS } from "@/data/url";
 import { cn } from "@/lib/utils";
@@ -34,22 +34,23 @@ export function NavbarMobile({
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            transition={{ duration: 0.25 }}
-            className="fixed inset-0 z-40 glass-strong lg:hidden"
+            transition={{ duration: 0.2 }}
+            style={{ isolation: "isolate" }}
+            className="fixed inset-0 z-[100] bg-background/95 backdrop-blur-xl lg:hidden"
           >
             <motion.nav
-              initial={{ opacity: 0, y: -16 }}
+              initial={{ opacity: 0, y: -12 }}
               animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -16 }}
-              transition={{ duration: 0.3, delay: 0.05 }}
+              exit={{ opacity: 0, y: -12 }}
+              transition={{ duration: 0.25, delay: 0.05 }}
               className="flex h-full flex-col items-center justify-center gap-2 px-6"
             >
               {navLinks.map((link, index) => (
                 <motion.div
                   key={link.href}
-                  initial={{ opacity: 0, y: 12 }}
+                  initial={{ opacity: 0, y: 10 }}
                   animate={{ opacity: 1, y: 0 }}
-                  transition={{ duration: 0.3, delay: 0.08 + index * 0.05 }}
+                  transition={{ duration: 0.25, delay: 0.05 + index * 0.04 }}
                 >
                   <Link
                     href={link.href}
