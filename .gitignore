@@ -23,6 +23,7 @@ storage.json-wal
 # misc
 .DS_Store
 *.pem
+next-env.d.ts
 
 # debug
 npm-debug.log*
