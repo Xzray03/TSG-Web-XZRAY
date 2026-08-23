@@ -36,6 +36,14 @@ export function TeamCard({ member, index }: TeamCardProps) {
       whileHover={{ y: -4 }}
       className="group relative h-full rounded-2xl"
     >
+      {/* Soft diffused Silver Crystal ambient glow behind the card */}
+      <motion.div
+        className="pointer-events-none absolute -inset-4 -z-10 rounded-3xl blur-2xl"
+        style={{ backgroundColor: "rgba(203, 213, 225, 0.12)" }}
+        animate={{ opacity: [0.2, 0.4, 0.2] }}
+        transition={{ duration: 3.5, repeat: Infinity, ease: "easeInOut" }}
+      />
+
       {/* Badge icon if present */}
       {badge && (
         <span className="absolute right-3 top-3 z-30">
