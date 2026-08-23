@@ -17,7 +17,8 @@ export function TeamMemberCardLayout({
   badge,
   children,
 }: TeamMemberCardLayoutProps) {
-  const badgeData = member.badge ? badgeConfig[member.badge] : null;
+  const badgeData = member.badge ? badgeConfig[badgeKeyCleaner(member.badge)] : null;
+  const badgeKey = member.badge;
 
   return (
     <motion.div
@@ -28,28 +29,21 @@ export function TeamMemberCardLayout({
       className="relative h-full rounded-2xl"
     >
       {badgeData && (
-        <motion.div
-          className="pointer-events-none absolute -inset-3 -z-10 rounded-3xl blur-xl"
-          style={{ backgroundColor: `rgba(${badgeData.glowRgb},0.35)` }}
-          animate={{ opacity: [0.3, 0.7, 0.3] }}
-          transition={{ duration: 2.8, repeat: Infinity, ease: "easeInOut" }}
-        />
+        <div className="pointer-events-none absolute -inset-3 -z-10 rounded-3xl blur-xl opacity-35" />
       )}
 
       {badgeData && (
-        <div className="pointer-events-none absolute -inset-[2px] -z-10 overflow-hidden rounded-2xl">
-          <motion.div
-            className="absolute inset-[-100%] blur-[3px]"
+        <div className="pointer-events-none absolute -inset-[2px] -z-10 overflow-hidden rounded-2xl opacity-40">
+          <div
+            className="absolute inset-[-100%] blur-[2px]"
             style={{
-              background: `conic-gradient(from 0deg, transparent 0deg, rgba(${badgeData.glowRgb},0.95) 50deg, transparent 130deg, transparent 360deg)`,
+              background: `conic-gradient(from 0deg, transparent 0deg, rgba(${badgeData.glowRgb},0.8) 50deg, transparent 130deg, transparent 360deg)`,
             }}
-            animate={{ rotate: 360 }}
-            transition={{ duration: 5, repeat: Infinity, ease: "linear" }}
           />
         </div>
       )}
 
-      <TeamMemberCardBadge badgeKey={member.badge} />
+      <TeamMemberCardBadge badgeKey={badgeKey} />
 
       <div
         className={cn(
@@ -61,4 +55,9 @@ export function TeamMemberCardLayout({
       </div>
     </motion.div>
   );
+}
+
+function badgeKeyCleaner(key?: string) {
+  if (!key) return "founder";
+  return key as keyof typeof badgeConfig;
 }
