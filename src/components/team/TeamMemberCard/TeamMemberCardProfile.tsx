@@ -23,8 +23,8 @@ export function TeamMemberCardProfile({ member, isExpanded }: TeamMemberCardProf
   ) as [keyof typeof socialIcons, string][];
 
   return (
-    <div className="group/profile relative aspect-[4/5] w-full overflow-hidden">
-      <div className="absolute inset-0 overflow-hidden">
+    <div className="group/profile relative aspect-[4/5] w-full overflow-hidden [transform:translateZ(0)]">
+      <div className="absolute inset-0 overflow-hidden [transform:translateZ(0)]">
         <Image
           src={member.photo}
           alt={member.name}
@@ -32,7 +32,7 @@ export function TeamMemberCardProfile({ member, isExpanded }: TeamMemberCardProf
           className="object-cover transition-transform duration-300 ease-out group-hover/profile:scale-105"
           sizes="(max-width: 640px) 50vw, 25vw"
         />
-        <div className="absolute inset-0 bg-gradient-to-t from-background via-background/10 to-transparent" />
+        <div className="absolute inset-0 bg-gradient-to-t from-background via-background/10 to-transparent pointer-events-none" />
 
         {/* Social links overlay on hover */}
         {socialEntries.length > 0 && (
@@ -57,10 +57,9 @@ export function TeamMemberCardProfile({ member, isExpanded }: TeamMemberCardProf
       </div>
 
       {hasAchievements && !isExpanded && (
-        <div className="absolute bottom-2 left-1/2 z-20 flex -translate-x-1/2 items-center gap-1.5">
+        <div className="absolute bottom-2 left-1/2 z-20 flex -translate-x-1/2 items-center gap-1.5 pointer-events-none">
           {achievements.map((ach, i) => {
             const count = achievements.length;
-            let initialX = 0;
             let hoverX = 0;
             let hoverY = 0;
 
@@ -81,7 +80,6 @@ export function TeamMemberCardProfile({ member, isExpanded }: TeamMemberCardProf
                 hoverY = -12;
               }
             } else {
-              // 4 or more: spread evenly left and right
               const mid = (count - 1) / 2;
               const offsetIndex = i - mid;
               hoverX = offsetIndex * 22;
@@ -92,10 +90,10 @@ export function TeamMemberCardProfile({ member, isExpanded }: TeamMemberCardProf
               <Tooltip key={i} label={ach.title}>
                 <motion.div
                   initial={{ opacity: 0, scale: 0.5 }}
-                  animate={{ opacity: 1, scale: 1, x: initialX, y: 0 }}
+                  animate={{ opacity: 1, scale: 1, x: 0, y: 0 }}
                   whileHover={{ scale: 1.1 }}
                   transition={{ duration: 0.3, delay: 0.05 + i * 0.05 }}
-                  className="absolute bottom-0 left-1/2 -translate-x-1/2"
+                  className="absolute bottom-0 left-1/2 -translate-x-1/2 pointer-events-auto"
                 >
                   <motion.div
                     animate={{
