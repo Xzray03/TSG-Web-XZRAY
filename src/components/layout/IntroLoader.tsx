@@ -5,20 +5,21 @@ import { useEffect, useState } from "react";
 import { usePathname } from "next/navigation";
 
 const WORDS = [
-  { id: "together", text: "Together", delay: 0.1 },
-  { id: "wemake", text: "We Make", delay: 0.3 },
-  { id: "abetter", text: "A Better", delay: 0.5 },
-  { id: "future", text: "Future", delay: 0.7 },
+  { id: "together", text: "Together", delay: 0.2 },
+  { id: "wemake", text: "We Make", delay: 0.5 },
+  { id: "abetter", text: "A Better", delay: 0.8 },
+  { id: "future", text: "Future", delay: 1.1 },
 ];
 
-const HOLD_AFTER_COMPLETE = 800;
-const LAST_WORD_FINISH = 700 + 800;
+const HOLD_AFTER_COMPLETE = 1200;
+const LAST_WORD_FINISH = 1100 + 1200;
 const TOTAL_DURATION = LAST_WORD_FINISH + HOLD_AFTER_COMPLETE;
 
 export function IntroLoader() {
   const pathname = usePathname();
   const [mounted, setMounted] = useState(false);
   const [show, setShow] = useState(false);
+  const [isExiting, setIsExiting] = useState(false);
 
   useEffect(() => {
     setMounted(true);
@@ -28,8 +29,8 @@ export function IntroLoader() {
       return;
     }
 
-    // Selalu tampilkan animasi intro setiap kali masuk/refresh halaman Home
     setShow(true);
+    setIsExiting(false);
   }, [pathname]);
 
   useEffect(() => {
@@ -42,14 +43,22 @@ export function IntroLoader() {
   }, [show]);
 
   useEffect(() => {
-    if (!show) return;
+    if (!show || isExiting) return;
 
     const timer = setTimeout(() => {
-      setShow(false);
+      setIsExiting(true);
+      const hideTimer = setTimeout(() => setShow(false), 800);
+      return () => clearTimeout(hideTimer);
     }, TOTAL_DURATION);
 
     return () => clearTimeout(timer);
-  }, [show]);
+  }, [show, isExiting]);
+
+  const handleSkip = () => {
+    if (isExiting) return;
+    setIsExiting(true);
+    setTimeout(() => setShow(false), 800);
+  };
 
   if (!mounted || !show) return null;
 
@@ -57,13 +66,15 @@ export function IntroLoader() {
     <AnimatePresence>
       <motion.div
         initial={{ y: 0 }}
-        animate={{ y: 0 }}
+        animate={{ y: isExiting ? "-100%" : 0 }}
         exit={{ y: "-100%" }}
         transition={{
           duration: 0.8,
           ease: [0.22, 1, 0.36, 1],
         }}
-        className="fixed inset-0 z-[99999] flex items-center justify-center overflow-hidden bg-[#020617]"
+        onClick={handleSkip}
+        className="fixed inset-0 z-[99999] flex cursor-pointer items-center justify-center overflow-hidden bg-[#020617]"
+        title="Klik di mana saja untuk melewati"
       >
         <motion.div
           initial={{
