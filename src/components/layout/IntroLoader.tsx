@@ -31,7 +31,6 @@ export function IntroLoader() {
 
     const seen = sessionStorage.getItem("tsg-intro-seen");
     if (!seen) {
-      sessionStorage.setItem("tsg-intro-seen", "1");
       setShow(true);
     } else {
       setShow(false);
@@ -50,6 +49,7 @@ export function IntroLoader() {
     if (!show) return;
 
     const timer = setTimeout(() => {
+      sessionStorage.setItem("tsg-intro-seen", "1");
       setShow(false);
     }, TOTAL_DURATION);
 
