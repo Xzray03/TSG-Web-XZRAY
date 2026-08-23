@@ -3,6 +3,8 @@
 import { AnimatePresence, motion } from "framer-motion";
 import { useEffect, useState } from "react";
 
+import { usePathname } from "next/navigation";
+
 const WORDS = [
   { id: "together", text: "Together", delay: 0.3 },
   { id: "wemake", text: "We Make", delay: 1.8 },
@@ -15,19 +17,26 @@ const LAST_WORD_FINISH = 3000 + 1800;
 const TOTAL_DURATION = LAST_WORD_FINISH + HOLD_AFTER_COMPLETE;
 
 export function IntroLoader() {
+  const pathname = usePathname();
   const [mounted, setMounted] = useState(false);
   const [show, setShow] = useState(false);
 
   useEffect(() => {
     setMounted(true);
+    const isHome = pathname === "/";
+    if (!isHome) {
+      setShow(false);
+      return;
+    }
 
     const seen = sessionStorage.getItem("tsg-intro-seen");
-
     if (!seen) {
       sessionStorage.setItem("tsg-intro-seen", "1");
       setShow(true);
+    } else {
+      setShow(false);
     }
-  }, []);
+  }, [pathname]);
 
   useEffect(() => {
     document.body.style.overflow = show ? "hidden" : "";
