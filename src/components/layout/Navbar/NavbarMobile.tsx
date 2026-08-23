@@ -34,23 +34,23 @@ export function NavbarMobile({
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            transition={{ duration: 0.2 }}
-            style={{ isolation: "isolate" }}
-            className="fixed inset-0 z-[100] bg-background/95 backdrop-blur-xl lg:hidden"
+            transition={{ duration: 0.15 }}
+            style={{ isolation: "isolate", transform: "translateZ(0)" }}
+            className="fixed inset-0 z-[99999] bg-background/98 backdrop-blur-2xl lg:hidden [backface-visibility:hidden]"
           >
             <motion.nav
-              initial={{ opacity: 0, y: -12 }}
+              initial={{ opacity: 0, y: -8 }}
               animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -12 }}
-              transition={{ duration: 0.25, delay: 0.05 }}
+              exit={{ opacity: 0, y: -8 }}
+              transition={{ duration: 0.2 }}
               className="flex h-full flex-col items-center justify-center gap-2 px-6"
             >
               {navLinks.map((link, index) => (
                 <motion.div
                   key={link.href}
-                  initial={{ opacity: 0, y: 10 }}
+                  initial={{ opacity: 0, y: 8 }}
                   animate={{ opacity: 1, y: 0 }}
-                  transition={{ duration: 0.25, delay: 0.05 + index * 0.04 }}
+                  transition={{ duration: 0.2, delay: 0.02 + index * 0.03 }}
                 >
                   <Link
                     href={link.href}
