@@ -19,19 +19,23 @@ export function ViewportVirtualizer({
   // Jangan pernah melakukan toggling `display: none` atau unload ketika discroll agar layout tidak collapse / loncat.
   // Cukup gunakan IntersectionObserver dan content-visibility / opacity / min-height untuk efisiensi rendering browser,
   // serta simpan ke sessionStorage agar state navigasi terjaga sepenuhnya.
-  const [hasRendered, setHasRendered] = useState<boolean>(() => {
-    if (typeof window === "undefined") return true;
-    try {
-      const cached = sessionStorage.getItem(`tsg_virt_${id}`);
-      return cached ? JSON.parse(cached) : false;
-    } catch {
-      return false;
-    }
-  });
+  const [hasRendered, setHasRendered] = useState<boolean>(true);
+  const [isMounted, setIsMounted] = useState<boolean>(false);
 
   const containerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
+    setIsMounted(true);
+    try {
+      const cached = sessionStorage.getItem(`tsg_virt_${id}`);
+      if (cached) {
+        setHasRendered(JSON.parse(cached));
+      }
+    } catch {}
+  }, [id]);
+
+  useEffect(() => {
+    if (!isMounted) return;
     const el = containerRef.current;
     if (!el) return;
 
@@ -56,7 +60,7 @@ export function ViewportVirtualizer({
     return () => {
       observer.unobserve(el);
     };
-  }, [id]);
+  }, [id, isMounted]);
 
   return (
     <div 
@@ -64,13 +68,11 @@ export function ViewportVirtualizer({
       className={className} 
       data-virtualizer-id={id}
       style={{
-        contentVisibility: hasRendered ? "auto" : "initial",
+        contentVisibility: isMounted && hasRendered ? "auto" : "initial",
         containIntrinsicSize: "auto 800px",
       }}
     >
-      {hasRendered ? (
-        children
-      ) : (
+      {isMounted && !hasRendered ? (
         <div style={{ minHeight: "400px" }} className="w-full flex items-center justify-center">
           {fallback || (
             <div className="py-12 text-zinc-500 text-sm animate-pulse">
@@ -78,6 +80,8 @@ export function ViewportVirtualizer({
             </div>
           )}
         </div>
+      ) : (
+        children
       )}
     </div>
   );
