@@ -37,12 +37,7 @@ GEMINI.md
 # vercel
 .vercel
 
-# typescript
-*.tsbuildinfo
-next-env.d.ts
-
 # sanity
 /dist
-next.config.ts
 sanity.cli.ts
 sanity.config.ts
