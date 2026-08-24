@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { Camera } from "lucide-react";
-import { getGalleryImages, getUniformShowcase } from "@/sanity/queries";
+import { getCachedGalleryFiltered } from "@/sanity/serverCache";
 import { GalleryLightboxWrapper } from "@/components/gallery/GalleryLightboxWrapper";
 import { UniformShowcase3D } from "@/components/gallery/UniformShowcase3D";
 import { cn } from "@/lib/utils";
@@ -22,16 +22,12 @@ export default async function GalleryPage({ searchParams }: GalleryPageProps) {
   const params = await searchParams;
   const activeCategory = params.category ?? "Semua";
 
-  const [images, uniform] = await Promise.all([
-    getGalleryImages(),
-    getUniformShowcase(),
-  ]);
+  // Memanfaatkan React server-side cache (`cache`) agar jika kategori
+  // yang sama pernah difilter sebelumnya pada siklus render yang sama,
+  // data langsung diambil dari memori tanpa mengulang proses filter ulang.
+  const { images: filtered, uniform, allImages } = await getCachedGalleryFiltered(activeCategory);
 
-  const categories = ["Semua", ...Array.from(new Set(images.map((i) => i.category)))];
-  const filtered =
-    activeCategory === "Semua"
-      ? images
-      : images.filter((i) => i.category === activeCategory);
+  const categories = ["Semua", ...Array.from(new Set(allImages.map((i) => i.category)))];
 
   return (
     <div className="bg-grid relative overflow-hidden pb-10 pt-36">
@@ -73,7 +69,7 @@ export default async function GalleryPage({ searchParams }: GalleryPageProps) {
           })}
         </div>
 
-        {images.length === 0 ? (
+        {allImages.length === 0 ? (
           <p className="mt-16 text-center text-sm text-slate-500">
             Belum ada foto galeri yang dipublikasikan.
           </p>

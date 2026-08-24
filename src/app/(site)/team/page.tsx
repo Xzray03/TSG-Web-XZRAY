@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { Users } from "lucide-react";
-import { getTeamCategories, getTeamMembers } from "@/sanity/queries";
+import { getCachedTeamFiltered } from "@/sanity/serverCache";
 import { TeamMemberCard } from "@/components/team/TeamMemberCard";
 import { cn } from "@/lib/utils";
 
@@ -19,13 +19,12 @@ interface TeamPageProps {
 
 export default async function TeamPage({ searchParams }: TeamPageProps) {
   const params = await searchParams;
-  const [categories, members] = await Promise.all([
-    getTeamCategories(),
-    getTeamMembers(),
-  ]);
+  const catSlug = params.cat;
 
-  const activeSlug = params.cat ?? categories[0]?.slug ?? "";
-  const filtered = members.filter((m) => m.categories.includes(activeSlug));
+  // Memanfaatkan React server-side cache (`cache`) agar jika kategori generasi
+  // yang sama pernah dibuka/difilter sebelumnya, hasil olahan data langsung
+  // digunakan dari memori server tanpa melakukan filter ulang.
+  const { categories, members: filtered, activeSlug } = await getCachedTeamFiltered(catSlug);
 
   return (
     <section className="bg-grid relative px-6 pb-24 pt-36 sm:px-10 lg:px-16">
