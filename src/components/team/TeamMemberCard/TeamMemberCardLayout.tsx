@@ -33,9 +33,9 @@ export function TeamMemberCardLayout({
       )}
 
       {badgeData && (
-        <div className="pointer-events-none absolute -inset-[2px] -z-10 overflow-hidden rounded-2xl opacity-40">
+        <div className="pointer-events-none absolute -inset-[2px] -z-10 overflow-hidden rounded-2xl opacity-60 sm:opacity-40">
           <div
-            className="absolute inset-[-100%] blur-[2px]"
+            className="absolute inset-[-100%] blur-[2px] animate-[spin_6s_linear_infinite]"
             style={{
               background: `conic-gradient(from 0deg, transparent 0deg, rgba(${badgeData.glowRgb},0.8) 50deg, transparent 130deg, transparent 360deg)`,
             }}

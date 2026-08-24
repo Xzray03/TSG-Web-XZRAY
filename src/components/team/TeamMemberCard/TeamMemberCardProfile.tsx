@@ -2,6 +2,7 @@ import Image from "next/image";
 import { Tooltip } from "@/components/ui/Tooltip";
 import { motion } from "framer-motion";
 import { Instagram, Linkedin, Mail } from "lucide-react";
+import { cn } from "@/lib/utils";
 import type { TeamMember } from "@/types";
 
 interface TeamMemberCardProfileProps {
@@ -29,6 +30,7 @@ export function TeamMemberCardProfile({ member, isExpanded }: TeamMemberCardProf
           src={member.photo}
           alt={member.name}
           fill
+          loading="eager"
           className="object-cover transition-transform duration-300 ease-out group-hover/profile:scale-105"
           sizes="(max-width: 640px) 50vw, 25vw"
         />
@@ -57,7 +59,10 @@ export function TeamMemberCardProfile({ member, isExpanded }: TeamMemberCardProf
       </div>
 
       {hasAchievements && !isExpanded && (
-        <div className="absolute bottom-2 left-1/2 z-20 flex -translate-x-1/2 items-center gap-1.5 pointer-events-none">
+        <div className={cn(
+          "absolute bottom-2 left-1/2 z-20 flex -translate-x-1/2 items-center gap-1.5 pointer-events-none transition-transform duration-300 ease-out",
+          socialEntries.length > 0 && "group-hover/profile:-translate-y-9"
+        )}>
           {achievements.map((ach, i) => {
             const count = achievements.length;
             let hoverX = 0;

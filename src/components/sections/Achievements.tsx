@@ -48,6 +48,16 @@ export function Achievements({ achievements }: AchievementsProps) {
     regionals[2] || regionals[0],
   ].filter(Boolean);
 
+  // For mobile view, make sure the very first card is International (if available)
+  const mobileFeatured = [...featured];
+  if (internationals[0]) {
+    const intlIndex = mobileFeatured.findIndex((a) => a.id === internationals[0].id);
+    if (intlIndex !== -1) {
+      mobileFeatured.splice(intlIndex, 1);
+    }
+    mobileFeatured.unshift(internationals[0]);
+  }
+
   return (
     <section className="relative px-6 py-24 sm:px-10 lg:px-16">
       <div className="pointer-events-none absolute right-0 top-0 -z-10 h-[460px] w-[460px] rounded-full bg-accent/10 blur-[140px]" />
@@ -95,64 +105,128 @@ export function Achievements({ achievements }: AchievementsProps) {
         </motion.div>
 
         {/* Featured highlights ordered as requested */}
-        <div className="mt-14 flex flex-wrap items-stretch justify-center gap-5">
-          {featured.map((item, index) => {
-            const st = getAchievementCardStyle(item.level);
-            return (
-              <div
-                key={`${item.id}-${index}`}
-                className="w-full sm:w-[calc(50%-0.625rem)] lg:w-[calc(33.333%-0.834rem)]"
-              >
-                <motion.div
-                  initial={{ opacity: 0, y: 24 }}
-                  whileInView={{ opacity: 1, y: 0 }}
-                  viewport={{ once: true, margin: "-60px" }}
-                  transition={{ duration: 0.5, delay: index * 0.06 }}
-                  whileHover={{ y: -4 }}
-                  className="group h-full"
+        <div className="mt-14">
+          {/* Mobile view: first card is International */}
+          <div className="flex flex-wrap items-stretch justify-center gap-5 sm:hidden">
+            {mobileFeatured.map((item, index) => {
+              const st = getAchievementCardStyle(item.level);
+              return (
+                <div
+                  key={`mobile-${item.id}-${index}`}
+                  className="w-full"
                 >
                   <motion.div
-                    transition={{ type: "spring", stiffness: 500, damping: 30 }}
-                    className={cn(
-                      "relative flex h-full flex-col overflow-hidden rounded-2xl p-6 transition-colors duration-200",
-                      st.cardClass
-                    )}
+                    initial={{ opacity: 0, y: 24 }}
+                    whileInView={{ opacity: 1, y: 0 }}
+                    viewport={{ once: true, margin: "-60px" }}
+                    transition={{ duration: 0.5, delay: index * 0.06 }}
+                    whileHover={{ y: -4 }}
+                    className="group h-full"
                   >
-                    <span className={st.pulseBorderClass} />
-
-                    <div className="pointer-events-none absolute inset-0 -z-10 bg-white/5 opacity-0 blur-2xl transition-opacity duration-200 ease-out group-hover:opacity-100" />
-
-                    <div className="flex items-start justify-between gap-3">
-                      <span className={cn(
-                        "flex h-11 w-11 shrink-0 items-center justify-center rounded-xl",
-                        st.iconBgClass
-                      )}>
-                        <Award className="h-5 w-5" />
-                      </span>
-                      <span className={cn("text-sm font-semibold", st.yearClass)}>
-                        {item.year}
-                      </span>
-                    </div>
-
-                    <h3 className={cn("mt-4 font-display text-base font-semibold leading-snug", st.titleClass)}>
-                      {item.title}
-                    </h3>
-                    <p className={cn("mt-1.5 text-sm", st.eventClass)}>{item.event}</p>
-
-                    <span
+                    <motion.div
+                      transition={{ type: "spring", stiffness: 500, damping: 30 }}
                       className={cn(
-                        "mt-auto inline-flex w-fit items-center gap-1.5 rounded-full border px-3 py-1 pt-4 text-[11px] font-medium",
-                        st.chipClass
+                        "relative flex h-full flex-col overflow-hidden rounded-2xl p-6 transition-colors duration-200",
+                        st.cardClass
                       )}
                     >
-                      <st.icon className="h-3 w-3" />
-                      {item.level}
-                    </span>
+                      <span className={st.pulseBorderClass} />
+
+                      <div className="pointer-events-none absolute inset-0 -z-10 bg-white/5 opacity-0 blur-2xl transition-opacity duration-200 ease-out group-hover:opacity-100" />
+
+                      <div className="flex items-start justify-between gap-3">
+                        <span className={cn(
+                          "flex h-11 w-11 shrink-0 items-center justify-center rounded-xl",
+                          st.iconBgClass
+                        )}>
+                          <Award className="h-5 w-5" />
+                        </span>
+                        <span className={cn("text-sm font-semibold", st.yearClass)}>
+                          {item.year}
+                        </span>
+                      </div>
+
+                      <h3 className={cn("mt-4 font-display text-base font-semibold leading-snug", st.titleClass)}>
+                        {item.title}
+                      </h3>
+                      <p className={cn("mt-1.5 text-sm", st.eventClass)}>{item.event}</p>
+
+                      <span
+                        className={cn(
+                          "mt-auto inline-flex w-fit items-center gap-1.5 rounded-full border px-3 py-1 pt-4 text-[11px] font-medium",
+                          st.chipClass
+                        )}
+                      >
+                        <st.icon className="h-3 w-3" />
+                        {item.level}
+                      </span>
+                    </motion.div>
                   </motion.div>
-                </motion.div>
-              </div>
-            );
-          })}
+                </div>
+              );
+            })}
+          </div>
+
+          {/* Desktop/Tablet view: original order */}
+          <div className="hidden sm:flex flex-wrap items-stretch justify-center gap-5">
+            {featured.map((item, index) => {
+              const st = getAchievementCardStyle(item.level);
+              return (
+                <div
+                  key={`desktop-${item.id}-${index}`}
+                  className="w-full sm:w-[calc(50%-0.625rem)] lg:w-[calc(33.333%-0.834rem)]"
+                >
+                  <motion.div
+                    initial={{ opacity: 0, y: 24 }}
+                    whileInView={{ opacity: 1, y: 0 }}
+                    viewport={{ once: true, margin: "-60px" }}
+                    transition={{ duration: 0.5, delay: index * 0.06 }}
+                    whileHover={{ y: -4 }}
+                    className="group h-full"
+                  >
+                    <motion.div
+                      transition={{ type: "spring", stiffness: 500, damping: 30 }}
+                      className={cn(
+                        "relative flex h-full flex-col overflow-hidden rounded-2xl p-6 transition-colors duration-200",
+                        st.cardClass
+                      )}
+                    >
+                      <span className={st.pulseBorderClass} />
+
+                      <div className="pointer-events-none absolute inset-0 -z-10 bg-white/5 opacity-0 blur-2xl transition-opacity duration-200 ease-out group-hover:opacity-100" />
+
+                      <div className="flex items-start justify-between gap-3">
+                        <span className={cn(
+                          "flex h-11 w-11 shrink-0 items-center justify-center rounded-xl",
+                          st.iconBgClass
+                        )}>
+                          <Award className="h-5 w-5" />
+                        </span>
+                        <span className={cn("text-sm font-semibold", st.yearClass)}>
+                          {item.year}
+                        </span>
+                      </div>
+
+                      <h3 className={cn("mt-4 font-display text-base font-semibold leading-snug", st.titleClass)}>
+                        {item.title}
+                      </h3>
+                      <p className={cn("mt-1.5 text-sm", st.eventClass)}>{item.event}</p>
+
+                      <span
+                        className={cn(
+                          "mt-auto inline-flex w-fit items-center gap-1.5 rounded-full border px-3 py-1 pt-4 text-[11px] font-medium",
+                          st.chipClass
+                        )}
+                      >
+                        <st.icon className="h-3 w-3" />
+                        {item.level}
+                      </span>
+                    </motion.div>
+                  </motion.div>
+                </div>
+              );
+            })}
+          </div>
         </div>
 
         <motion.div

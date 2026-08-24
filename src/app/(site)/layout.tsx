@@ -39,6 +39,11 @@ export async function generateMetadata(): Promise<Metadata> {
       template: `%s | ${settings.shortName}`,
     },
     description: settings.description,
+    icons: settings.logoUrl ? {
+      icon: settings.logoUrl,
+      shortcut: settings.logoUrl,
+      apple: settings.logoUrl,
+    } : undefined,
     keywords: [
       "Robotics Club",
       "Science Club",
@@ -69,7 +74,7 @@ export async function generateMetadata(): Promise<Metadata> {
 }
 
 export const viewport: Viewport = {
-  themeColor: "#020817",
+  themeColor: "#c084fc", // Purple Lilac
   width: "device-width",
   initialScale: 1,
 };
