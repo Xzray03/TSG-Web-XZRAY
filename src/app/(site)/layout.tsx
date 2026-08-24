@@ -3,6 +3,7 @@ import { Space_Grotesk, Inter } from "next/font/google";
 import { Navbar } from "@/components/layout/Navbar";
 import { Footer } from "@/components/layout/Footer";
 import { FloatingWhatsApp } from "@/components/layout/FloatingWhatsApp";
+import { ScrollToTopButton } from "@/components/layout/ScrollToTopButton";
 import { IntroLoader } from "@/components/layout/IntroLoader";
 import { MouseGuard } from "@/components/layout/MouseGuard";
 import { WaterRippleEffect } from "@/components/layout/WaterRippleEffect";
@@ -90,6 +91,7 @@ export default async function SiteLayout({
         <MouseGuard />
         <IntroLoader />
         <Navbar shortName={settings.shortName} logoUrl={settings.logoUrl} />
+        <ScrollToTopButton />
         <main>{children}</main>
         <Footer divisions={divisions} settings={settings} />
         <FloatingWhatsApp whatsappNumber={settings.whatsappNumber} />
