@@ -68,7 +68,7 @@ export function GalleryPreview({ images }: GalleryPreviewProps) {
           transition={{ duration: 0.6, delay: 0.1 }}
           className="mt-14 flex flex-wrap justify-center gap-4"
         >
-          {previewImages.map((item) => (
+          {previewImages.map((item, index) => (
             <motion.button
               key={item.id}
               type="button"
@@ -80,6 +80,7 @@ export function GalleryPreview({ images }: GalleryPreviewProps) {
                 src={item.src}
                 alt={item.alt}
                 fill
+                priority={index === 0}
                 className="object-cover transition-transform duration-300 ease-out group-hover:scale-105"
                 sizes="(max-width: 640px) 50vw, 33vw"
               />
