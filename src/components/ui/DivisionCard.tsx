@@ -59,23 +59,21 @@ export function DivisionCard({ division, index }: DivisionCardProps) {
         viewport={{ once: true, margin: "-60px" }}
         transition={{ duration: 0.5, delay: index * 0.08 }}
         whileHover={{ y: -6 }}
-        // Spring tuned high-stiffness/low-damping so the lift reacts
-        // immediately on hover instead of feeling delayed.
         whileTap={{ y: -2 }}
         style={{ transformStyle: "preserve-3d" }}
-        className="group h-full"
+        className="group h-full gpu-accelerated"
       >
         <motion.div
           transition={{ type: "spring", stiffness: 500, damping: 30 }}
           className={cn(
-            "glass relative flex h-full flex-col overflow-hidden rounded-2xl border border-white/[0.08] p-6 transition-colors duration-200",
+            "glass relative flex h-full flex-col overflow-hidden rounded-2xl border border-white/[0.08] p-6 transition-colors duration-200 gpu-accelerated",
             colors.border
           )}
         >
           {/* Cheap opacity-only glow layer — GPU-compositable, no repaint lag */}
           <div
             className={cn(
-              "pointer-events-none absolute inset-0 -z-10 opacity-0 blur-2xl transition-opacity duration-200 ease-out group-hover:opacity-100",
+              "pointer-events-none absolute inset-0 -z-10 opacity-0 blur-2xl transition-opacity duration-200 ease-out group-hover:opacity-100 gpu-accelerated",
               colors.glowBg
             )}
           />
@@ -83,7 +81,7 @@ export function DivisionCard({ division, index }: DivisionCardProps) {
           <div className="relative mx-auto mb-5 h-[72px] w-[72px]">
             {/* Continuous pulsing glow behind the icon/logo box */}
             <motion.span
-              className={cn("absolute inset-0 rounded-2xl blur-md", colors.glowBg)}
+              className={cn("absolute inset-0 rounded-2xl blur-md gpu-accelerated", colors.glowBg)}
               animate={{ opacity: [0.35, 0.8, 0.35] }}
               transition={{ duration: 2.6, repeat: Infinity, ease: "easeInOut" }}
             />
@@ -93,7 +91,7 @@ export function DivisionCard({ division, index }: DivisionCardProps) {
                 type="button"
                 onClick={() => setIsLogoModalOpen(true)}
                 className={cn(
-                  "relative flex h-[72px] w-[72px] items-center justify-center overflow-hidden rounded-2xl transition-transform duration-200 ease-out hover:scale-110 focus:outline-none cursor-pointer p-3",
+                  "relative flex h-[72px] w-[72px] items-center justify-center overflow-hidden rounded-2xl transition-transform duration-200 ease-out hover:scale-110 focus:outline-none cursor-pointer p-3 gpu-accelerated",
                   colors.iconBg
                 )}
                 title={`Perbesar logo ${division.name}`}
@@ -109,7 +107,7 @@ export function DivisionCard({ division, index }: DivisionCardProps) {
             ) : (
               <span
                 className={cn(
-                  "relative flex h-[72px] w-[72px] items-center justify-center overflow-hidden rounded-2xl transition-transform duration-200 ease-out group-hover:scale-110",
+                  "relative flex h-[72px] w-[72px] items-center justify-center overflow-hidden rounded-2xl transition-transform duration-200 ease-out group-hover:scale-110 gpu-accelerated",
                   colors.iconBg
                 )}
               >

@@ -23,7 +23,7 @@ export function FooterAbout({
           <button
             type="button"
             onClick={() => setIsLogoModalOpen(true)}
-            className="group relative flex h-14 w-14 items-center justify-center transition-transform duration-300 hover:scale-110 focus:outline-none cursor-pointer"
+            className="group relative flex h-14 w-14 items-center justify-center transition-transform duration-300 hover:scale-110 focus:outline-none cursor-pointer gpu-accelerated"
           >
             <span className="absolute inset-0 -z-10 rounded-full bg-primary/20 blur-lg opacity-0 transition-opacity duration-300 group-hover:opacity-100" />
             <Image
@@ -38,7 +38,7 @@ export function FooterAbout({
           <button
             type="button"
             onClick={() => setIsLogoModalOpen(true)}
-            className="group relative flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-primary to-blue text-background transition-transform duration-300 hover:scale-110 focus:outline-none cursor-pointer shadow-md"
+            className="group relative flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-primary to-blue text-background transition-transform duration-300 hover:scale-110 focus:outline-none cursor-pointer shadow-md gpu-accelerated"
           >
             <Zap className="h-5 w-5" strokeWidth={2.5} />
             <span className="absolute inset-0 -z-10 rounded-xl bg-primary/40 blur-lg opacity-0 transition-opacity duration-300 group-hover:opacity-100" />

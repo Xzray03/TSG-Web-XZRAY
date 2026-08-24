@@ -39,7 +39,7 @@ export function NavbarLayout({
           <button
             type="button"
             onClick={() => setIsLogoModalOpen(true)}
-            className="group relative flex h-20 w-20 items-center justify-center transition-transform duration-300 hover:scale-105 focus:outline-none cursor-pointer"
+            className="group relative flex h-20 w-20 items-center justify-center transition-transform duration-300 hover:scale-105 focus:outline-none cursor-pointer gpu-accelerated"
           >
             <span className="absolute inset-0 -z-10 rounded-full bg-primary/30 blur-xl" />
             <Image
@@ -55,7 +55,7 @@ export function NavbarLayout({
           <button
             type="button"
             onClick={() => setIsLogoModalOpen(true)}
-            className="group relative flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-primary to-blue text-background transition-transform duration-300 hover:scale-105 focus:outline-none cursor-pointer"
+            className="group relative flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-primary to-blue text-background transition-transform duration-300 hover:scale-105 focus:outline-none cursor-pointer gpu-accelerated"
           >
             <Zap className="h-5 w-5" strokeWidth={2.5} />
             <span className="absolute inset-0 -z-10 rounded-xl bg-primary/40 blur-lg" />
@@ -78,7 +78,7 @@ export function NavbarLayout({
       <div className="hidden lg:block">
         <Link
           href={EXTERNAL_URLS.registration}
-          className="glow-cyan inline-flex items-center gap-2 rounded-full bg-gradient-to-r from-primary to-blue px-5 py-2.5 text-sm font-semibold text-background transition-all duration-300 hover:bg-gradient-to-r hover:from-purple-500 hover:to-indigo-600 hover:text-white hover:shadow-[0_0_40px_-8px_rgba(168,85,247,0.45)] hover:scale-105"
+          className="glow-cyan inline-flex items-center gap-2 rounded-full bg-gradient-to-r from-primary to-blue px-5 py-2.5 text-sm font-semibold text-background transition-all duration-300 hover:bg-gradient-to-r hover:from-purple-500 hover:to-indigo-600 hover:text-white hover:shadow-[0_0_40px_-8px_rgba(168,85,247,0.45)] hover:scale-105 gpu-accelerated"
         >
           Join TSG
         </Link>

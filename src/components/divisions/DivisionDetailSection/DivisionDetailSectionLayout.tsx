@@ -53,12 +53,12 @@ export function DivisionDetailSectionLayout({
           <div className="relative flex h-72 w-72 items-center justify-center sm:h-[22rem] sm:w-[22rem]">
             {/* Pulsing rings */}
             <motion.span
-              className={cn("absolute inset-0 rounded-full border", theme.ring)}
+              className={cn("absolute inset-0 rounded-full border gpu-accelerated", theme.ring)}
               animate={{ scale: [1, 1.15, 1], opacity: [0.6, 0, 0.6] }}
               transition={{ duration: 3, repeat: Infinity, ease: "easeInOut" }}
             />
             <motion.span
-              className={cn("absolute inset-10 rounded-full border", theme.ring)}
+              className={cn("absolute inset-10 rounded-full border gpu-accelerated", theme.ring)}
               animate={{ scale: [1, 1.12, 1], opacity: [0.5, 0, 0.5] }}
               transition={{ duration: 3, repeat: Infinity, ease: "easeInOut", delay: 0.6 }}
             />
@@ -70,7 +70,7 @@ export function DivisionDetailSectionLayout({
             {SPARKLES.map((s, i) => (
               <motion.span
                 key={i}
-                className={cn("absolute h-1.5 w-1.5 rounded-full", theme.accentText, "bg-current")}
+                className={cn("absolute h-1.5 w-1.5 rounded-full gpu-accelerated", theme.accentText, "bg-current")}
                 style={{ top: s.top, left: s.left }}
                 animate={{ opacity: [0, 1, 0], scale: [0.5, 1.2, 0.5] }}
                 transition={{ duration: 2.4, repeat: Infinity, delay: s.delay }}
@@ -85,7 +85,7 @@ export function DivisionDetailSectionLayout({
                 animate={{ y: [0, -16, 0] }}
                 transition={{ duration: 4.5, repeat: Infinity, ease: "easeInOut" }}
                 className={cn(
-                  "glass-strong relative flex h-56 w-56 items-center justify-center overflow-hidden rounded-full border-2 p-9 sm:h-64 sm:w-64 transition-transform duration-300 hover:scale-105 focus:outline-none cursor-pointer",
+                  "glass-strong relative flex h-56 w-56 items-center justify-center overflow-hidden rounded-full border-2 p-9 sm:h-64 sm:w-64 transition-transform duration-300 hover:scale-105 focus:outline-none cursor-pointer gpu-accelerated",
                   theme.ring
                 )}
                 title={`Perbesar logo ${division.name}`}
@@ -104,7 +104,7 @@ export function DivisionDetailSectionLayout({
                 animate={{ y: [0, -16, 0] }}
                 transition={{ duration: 4.5, repeat: Infinity, ease: "easeInOut" }}
                 className={cn(
-                  "glass-strong relative flex h-56 w-56 items-center justify-center overflow-hidden rounded-full border-2 p-9 sm:h-64 sm:w-64",
+                  "glass-strong relative flex h-56 w-56 items-center justify-center overflow-hidden rounded-full border-2 p-9 sm:h-64 sm:w-64 gpu-accelerated",
                   theme.ring
                 )}
               >
@@ -119,7 +119,7 @@ export function DivisionDetailSectionLayout({
               viewport={{ once: true }}
               transition={{ delay: 0.4, type: "spring", stiffness: 260, damping: 18 }}
               className={cn(
-                "glass-strong absolute -bottom-2 -right-2 flex h-16 w-16 items-center justify-center rounded-2xl border font-display text-xl font-bold text-white",
+                "glass-strong absolute -bottom-2 -right-2 flex h-16 w-16 items-center justify-center rounded-2xl border font-display text-xl font-bold text-white gpu-accelerated",
                 theme.ring
               )}
             >
@@ -169,7 +169,7 @@ export function DivisionDetailSectionLayout({
           <Link
             href={EXTERNAL_URLS.registration}
             className={cn(
-              "mt-8 inline-flex items-center gap-2 rounded-full bg-gradient-to-r px-6 py-3 text-sm font-semibold text-background shadow-lg transition-transform duration-300 hover:scale-105",
+              "mt-8 inline-flex items-center gap-2 rounded-full bg-gradient-to-r px-6 py-3 text-sm font-semibold text-background shadow-lg transition-transform duration-300 hover:scale-105 gpu-accelerated",
               theme.gradient
             )}
           >

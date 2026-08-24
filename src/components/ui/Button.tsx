@@ -32,7 +32,7 @@ type ButtonProps = ButtonAsLink | ButtonAsButton;
 
 const variantStyles: Record<ButtonVariant, string> = {
   primary:
-    "glow-cyan bg-gradient-to-r from-primary to-accent text-background hover:scale-105",
+    "glow-cyan bg-gradient-to-r from-primary to-accent text-background hover:scale-105 gpu-accelerated",
   secondary:
     "glass border border-white/[0.08] text-white hover:border-accent/40 hover:bg-white/[0.08]",
   ghost: "text-slate-300 hover:text-white hover:bg-white/5",

@@ -41,19 +41,18 @@ export function EventCard({ event, index }: EventCardProps) {
       whileInView={{ opacity: 1, y: 0 }}
       viewport={{ once: true, margin: "-60px" }}
       transition={{ duration: 0.5, delay: index * 0.1 }}
-      whileHover={{ y: -4 }}
-      className="group h-full"
+      className="group/event h-full"
     >
       <motion.div
         transition={{ type: "spring", stiffness: 500, damping: 30 }}
-        className="glass relative flex h-full flex-col overflow-hidden rounded-2xl border border-white/[0.08] transition-colors duration-200 group-hover:border-accent/40"
+        className="glass relative flex h-full flex-col overflow-hidden rounded-2xl border border-white/[0.08] transition-colors duration-200 group-hover/event:border-accent/40"
       >
         <div className="relative h-44 w-full shrink-0 overflow-hidden">
           <Image
             src={event.image}
             alt={event.title}
             fill
-            className="object-cover transition-transform duration-300 ease-out group-hover:scale-105"
+            className="object-cover transition-transform duration-300 ease-out group-hover/event:scale-105"
             sizes="(max-width: 640px) 100vw, 33vw"
           />
           <div className="absolute inset-0 bg-gradient-to-t from-background via-background/20 to-transparent" />

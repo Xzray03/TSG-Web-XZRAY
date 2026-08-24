@@ -34,11 +34,11 @@ export function TeamCard({ member, index }: TeamCardProps) {
       viewport={{ once: true, margin: "-60px" }}
       transition={{ duration: 0.5, delay: index * 0.08 }}
       whileHover={{ y: -4 }}
-      className="group relative h-full rounded-2xl"
+      className="group relative h-full rounded-2xl gpu-accelerated"
     >
       {/* Soft diffused Silver Crystal ambient glow behind the card */}
       <motion.div
-        className="pointer-events-none absolute -inset-4 -z-10 rounded-3xl blur-2xl"
+        className="pointer-events-none absolute -inset-4 -z-10 rounded-3xl blur-2xl gpu-accelerated"
         style={{ backgroundColor: "rgba(203, 213, 225, 0.3)" }}
         animate={{ opacity: [0.35, 0.60, 0.35] }}
         transition={{ duration: 3.5, repeat: Infinity, ease: "easeInOut" }}
@@ -59,9 +59,9 @@ export function TeamCard({ member, index }: TeamCardProps) {
 
       <motion.div
         transition={{ type: "spring", stiffness: 500, damping: 30 }}
-        className="glass relative z-10 overflow-hidden rounded-2xl border border-white/[0.08] transition-colors duration-200 group-hover:border-accent/40 h-full flex flex-col"
+        className="glass relative z-10 overflow-hidden rounded-2xl border border-white/[0.08] transition-colors duration-200 group-hover:border-accent/40 h-full flex flex-col gpu-accelerated"
       >
-        <div className="relative aspect-[4/5] w-full overflow-hidden">
+        <div className="relative aspect-[4/5] w-full overflow-hidden gpu-accelerated">
           <Image
             src={member.photo}
             alt={member.name}
