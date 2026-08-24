@@ -6,10 +6,12 @@ import { Calendar, MapPin, Clock, ArrowRight } from "lucide-react";
 import { useCountdown } from "@/hooks/useCountdown";
 import { Button } from "@/components/ui/Button";
 import type { EventItem } from "@/types";
+import { ServerCountdown } from "@/lib/server-countdown";
 
 interface EventCardProps {
   event: EventItem;
   index: number;
+  serverCountdown?: ServerCountdown;
 }
 
 const dateFormatter = new Intl.DateTimeFormat("id-ID", {
@@ -31,9 +33,20 @@ function formatEventDateTime(dateString: string) {
   return `${timeFormatter.format(date)} WIB - ${dateFormatter.format(date)}`;
 }
 
-export function EventCard({ event, index }: EventCardProps) {
-  const countdown = useCountdown(event.date);
-  const isToday = countdown && !countdown.isPast && countdown.days === 0;
+export function EventCard({ event, index, serverCountdown }: EventCardProps) {
+  const clientCountdown = useCountdown(event.date);
+
+  const isToday = clientCountdown 
+    ? (!clientCountdown.isPast && clientCountdown.days === 0)
+    : (serverCountdown?.isToday ?? false);
+
+  const daysLeft = clientCountdown 
+    ? clientCountdown.days 
+    : (serverCountdown?.days ?? 0);
+
+  const isPast = clientCountdown 
+    ? clientCountdown.isPast 
+    : (serverCountdown?.isPast ?? false);
 
   return (
     <motion.div
@@ -57,9 +70,9 @@ export function EventCard({ event, index }: EventCardProps) {
           />
           <div className="absolute inset-0 bg-gradient-to-t from-background via-background/20 to-transparent" />
 
-          {countdown && !countdown.isPast && (
+          {!isPast && (
             <div className="glass-strong absolute right-3 top-3 rounded-full px-3 py-1.5 text-xs font-semibold text-accent">
-              {isToday ? "Hari Ini" : `${countdown.days} hari lagi`}
+              {isToday ? "Hari Ini" : `${daysLeft} hari lagi`}
             </div>
           )}
         </div>
@@ -83,12 +96,14 @@ export function EventCard({ event, index }: EventCardProps) {
               {event.location}
             </div>
 
-            {countdown && !countdown.isPast && (
+            {!isPast && (
               <div className="mt-2 flex items-center gap-2 text-xs text-slate-600">
                 <Clock className="h-3.5 w-3.5" />
-                {isToday
-                  ? `${countdown.hours} jam ${countdown.minutes} menit lagi`
-                  : `${countdown.days} hari ${countdown.hours} jam lagi`}
+                {isToday && clientCountdown
+                  ? `${clientCountdown.hours} jam ${clientCountdown.minutes} menit lagi`
+                  : isToday
+                  ? "Segera dimulai hari ini"
+                  : `${daysLeft} hari lagi`}
               </div>
             )}
 

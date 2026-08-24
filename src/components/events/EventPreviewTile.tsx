@@ -6,16 +6,30 @@ import { Calendar, MapPin } from "lucide-react";
 import { useCountdown } from "@/hooks/useCountdown";
 import { formatEventDateTime } from "@/lib/format-date";
 import type { EventItem } from "@/types";
+import { ServerCountdown } from "@/lib/server-countdown";
 
 interface EventPreviewTileProps {
   event: EventItem;
   index: number;
   onClick: () => void;
+  serverCountdown?: ServerCountdown;
 }
 
-export function EventPreviewTile({ event, index, onClick }: EventPreviewTileProps) {
-  const countdown = useCountdown(event.date);
-  const isToday = countdown && !countdown.isPast && countdown.days === 0;
+export function EventPreviewTile({ event, index, onClick, serverCountdown }: EventPreviewTileProps) {
+  const clientCountdown = useCountdown(event.date);
+  
+  // Use client-side countdown if available, otherwise fallback to pre-rendered server countdown
+  const isToday = clientCountdown 
+    ? (!clientCountdown.isPast && clientCountdown.days === 0)
+    : (serverCountdown?.isToday ?? false);
+
+  const daysLeft = clientCountdown 
+    ? clientCountdown.days 
+    : (serverCountdown?.days ?? 0);
+
+  const isPast = clientCountdown 
+    ? clientCountdown.isPast 
+    : (serverCountdown?.isPast ?? false);
 
   return (
     <motion.button
@@ -42,9 +56,9 @@ export function EventPreviewTile({ event, index, onClick }: EventPreviewTileProp
           />
           <div className="absolute inset-0 bg-gradient-to-t from-background via-background/20 to-transparent" />
 
-          {countdown && !countdown.isPast && (
+          {!isPast && (
             <div className="glass-strong absolute right-3 top-3 rounded-full px-3 py-1.5 text-xs font-semibold text-accent">
-              {isToday ? "Hari Ini" : `${countdown.days} hari lagi`}
+              {isToday ? "Hari Ini" : `${daysLeft} hari lagi`}
             </div>
           )}
         </div>

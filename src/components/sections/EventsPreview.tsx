@@ -7,12 +7,14 @@ import { EventPreviewTile } from "@/components/events/EventPreviewTile";
 import { EventModal } from "@/components/events/EventModal";
 import { Button } from "@/components/ui/Button";
 import type { EventItem } from "@/types";
+import { ServerCountdown } from "@/lib/server-countdown";
 
 interface EventsPreviewProps {
   events: EventItem[];
+  serverCountdowns: ServerCountdown[];
 }
 
-export function EventsPreview({ events }: EventsPreviewProps) {
+export function EventsPreview({ events, serverCountdowns }: EventsPreviewProps) {
   const [selected, setSelected] = useState<EventItem | null>(null);
 
   const upcoming = events
@@ -63,18 +65,22 @@ export function EventsPreview({ events }: EventsPreviewProps) {
         </motion.div>
 
         <div className="mt-14 flex flex-wrap items-stretch justify-center gap-6">
-          {upcoming.map((event, index) => (
-            <div
-              key={event.id}
-              className="w-full sm:w-[calc(50%-0.75rem)] lg:w-[calc(33.333%-1rem)]"
-            >
-              <EventPreviewTile
-                event={event}
-                index={index}
-                onClick={() => setSelected(event)}
-              />
-            </div>
-          ))}
+          {upcoming.map((event, index) => {
+            const serverCountdown = serverCountdowns[index];
+            return (
+              <div
+                key={event.id}
+                className="w-full sm:w-[calc(50%-0.75rem)] lg:w-[calc(33.333%-1rem)]"
+              >
+                <EventPreviewTile
+                  event={event}
+                  index={index}
+                  onClick={() => setSelected(event)}
+                  serverCountdown={serverCountdown}
+                />
+              </div>
+            );
+          })}
         </div>
 
         <motion.div

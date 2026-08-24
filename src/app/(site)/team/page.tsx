@@ -1,7 +1,9 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { Users } from "lucide-react";
 import { getTeamCategories, getTeamMembers } from "@/sanity/queries";
-import { TeamPageClient } from "@/components/team/TeamPageClient";
+import { TeamMemberCard } from "@/components/team/TeamMemberCard";
+import { cn } from "@/lib/utils";
 
 export const revalidate = 0;
 
@@ -11,11 +13,19 @@ export const metadata: Metadata = {
     "Kenali seluruh generasi anggota, mentor, dan pengurus The Smart Generation (TSG).",
 };
 
-export default async function TeamPage() {
+interface TeamPageProps {
+  searchParams: Promise<{ cat?: string }>;
+}
+
+export default async function TeamPage({ searchParams }: TeamPageProps) {
+  const params = await searchParams;
   const [categories, members] = await Promise.all([
     getTeamCategories(),
     getTeamMembers(),
   ]);
+
+  const activeSlug = params.cat ?? categories[0]?.slug ?? "";
+  const filtered = members.filter((m) => m.categories.includes(activeSlug));
 
   return (
     <section className="bg-grid relative px-6 pb-24 pt-36 sm:px-10 lg:px-16">
@@ -36,7 +46,53 @@ export default async function TeamPage() {
           </p>
         </div>
 
-        <TeamPageClient categories={categories} members={members} />
+        {categories.length === 0 ? (
+          <p className="mt-12 text-center text-sm text-slate-500">
+            Belum ada kategori/generasi yang dibuat di Studio.
+          </p>
+        ) : (
+          <div>
+            {/* Server-side category tabs */}
+            <div className="mt-12 flex flex-wrap justify-center gap-2">
+              {categories.map((cat) => {
+                const href = `/team?cat=${encodeURIComponent(cat.slug)}`;
+                const isActive = activeSlug === cat.slug;
+                return (
+                  <Link
+                    key={cat.id}
+                    href={href}
+                    className={cn(
+                      "rounded-full border px-5 py-2 text-sm font-medium transition-colors duration-200",
+                      isActive
+                        ? "border-accent/50 bg-accent/15 text-accent"
+                        : "border-white/[0.08] text-slate-400 hover:border-white/20 hover:text-white"
+                    )}
+                  >
+                    {cat.name}
+                  </Link>
+                );
+              })}
+            </div>
+
+            {/* Member grid */}
+            <div className="mt-12 flex flex-wrap items-stretch justify-center gap-6">
+              {filtered.length === 0 ? (
+                <p className="py-16 text-sm text-slate-500">
+                  Belum ada anggota di kategori ini.
+                </p>
+              ) : (
+                filtered.map((member, index) => (
+                  <div
+                    key={member.id}
+                    className="w-full sm:w-[calc(50%-0.75rem)] lg:w-[calc(25%-1.125rem)]"
+                  >
+                    <TeamMemberCard member={member} index={index} />
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+        )}
       </div>
     </section>
   );
