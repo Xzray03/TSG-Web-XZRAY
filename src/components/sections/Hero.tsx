@@ -36,10 +36,10 @@ export function Hero({ content, divisions, foundedYear }: HeroProps) {
         }}
       >
         <div className="absolute inset-0 flex flex-col items-center justify-center p-8 text-center select-none">
-          <span className="font-display font-extrabold tracking-tight text-white/[0.08] text-[clamp(2rem,7vw,7rem)] leading-none uppercase whitespace-nowrap">
+          <span className="font-display font-extrabold tracking-tight text-[clamp(2rem,7vw,7rem)] leading-none uppercase whitespace-nowrap bg-gradient-to-r from-sky-400 via-white via-sky-200 to-sky-400 bg-[length:300%_auto] animate-[gradient_6s_linear_infinite] bg-clip-text text-transparent">
             THE SMART GENERATION
           </span>
-          <span className="mt-3 font-display font-medium tracking-wide text-white/[0.06] text-[clamp(0.85rem,2vw,1.6rem)] leading-none uppercase whitespace-nowrap">
+          <span className="mt-3 font-display font-medium tracking-wide text-[clamp(0.85rem,2vw,1.6rem)] leading-none uppercase whitespace-nowrap bg-gradient-to-r from-sky-400 via-white via-sky-200 to-sky-400 bg-[length:300%_auto] animate-[gradient_6s_linear_infinite] bg-clip-text text-transparent">
             Together We Make A Better Future
           </span>
         </div>

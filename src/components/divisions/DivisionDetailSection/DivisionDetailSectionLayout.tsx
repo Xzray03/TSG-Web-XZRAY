@@ -7,6 +7,7 @@ import { divisionTheme } from "@/lib/division-theme";
 import { EXTERNAL_URLS } from "@/data/url";
 import { cn } from "@/lib/utils";
 import type { Division } from "@/types";
+import { InteractiveSkillTags } from "./InteractiveSkillTags";
 
 interface DivisionDetailSectionLayoutProps {
   division: Division;
@@ -150,32 +151,20 @@ export function DivisionDetailSectionLayout({
           </p>
 
           {division.skills.length > 0 && (
-            <div className="mt-6 flex flex-wrap gap-2">
-              {division.skills.map((skill, i) => (
-                <motion.span
-                  key={skill}
-                  initial={{ opacity: 0, y: 8 }}
-                  whileInView={{ opacity: 1, y: 0 }}
-                  viewport={{ once: true }}
-                  transition={{ duration: 0.4, delay: 0.3 + i * 0.06 }}
-                  className={cn("rounded-full border px-3.5 py-1.5 text-xs font-medium", theme.chip)}
-                >
-                  {skill}
-                </motion.span>
-              ))}
+            <div className="mt-6">
+              <InteractiveSkillTags skills={division.skills} chipThemeClass={theme.chip} />
             </div>
           )}
 
-          <Link
-            href={EXTERNAL_URLS.registration}
-            className={cn(
-              "mt-8 inline-flex items-center gap-2 rounded-full bg-gradient-to-r px-6 py-3 text-sm font-semibold text-background shadow-lg transition-transform duration-300 hover:scale-105 gpu-accelerated",
-              theme.gradient
-            )}
-          >
-            Gabung Divisi Ini
-            <ArrowRight className="h-4 w-4" />
-          </Link>
+          <div className="mt-10">
+            <Link
+              href={EXTERNAL_URLS.registration}
+              className="glow-cyan inline-flex items-center gap-2 rounded-full bg-gradient-to-r from-primary to-blue px-6 py-3 text-sm font-semibold text-background transition-all duration-300 hover:bg-gradient-to-r hover:from-purple-500 hover:to-indigo-600 hover:text-white hover:shadow-[0_0_40px_-8px_rgba(168,85,247,0.45)] hover:scale-105 gpu-accelerated"
+            >
+              Gabung Divisi Ini
+              <ArrowRight className="h-4 w-4" />
+            </Link>
+          </div>
         </motion.div>
       </div>
     </section>

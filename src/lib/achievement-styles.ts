@@ -17,7 +17,7 @@ export function getAchievementCardStyle(level: AchievementItem["level"]): Achiev
     case "International":
       return {
         cardClass: "international-card",
-        pulseBorderClass: "absolute inset-0 pointer-events-none rounded-2xl border border-purple-300/40 animate-pulse",
+        pulseBorderClass: "absolute inset-0 pointer-events-none rounded-2xl border border-purple-300/100 animate-pulse",
         iconBgClass: "bg-purple-500/20 text-purple-200 shadow-[0_0_15px_rgba(168,85,247,0.3)]",
         yearClass: "text-purple-300/80",
         titleClass: "text-purple-100",
@@ -28,7 +28,7 @@ export function getAchievementCardStyle(level: AchievementItem["level"]): Achiev
     case "National":
       return {
         cardClass: "national-card",
-        pulseBorderClass: "absolute inset-0 pointer-events-none rounded-2xl border border-sky-300/40 animate-pulse",
+        pulseBorderClass: "absolute inset-0 pointer-events-none rounded-2xl border border-sky-300/100 animate-pulse",
         iconBgClass: "bg-sky-500/20 text-sky-200 shadow-[0_0_15px_rgba(56,189,248,0.3)]",
         yearClass: "text-sky-300/80",
         titleClass: "text-sky-100",
@@ -40,7 +40,7 @@ export function getAchievementCardStyle(level: AchievementItem["level"]): Achiev
     default:
       return {
         cardClass: "regional-card",
-        pulseBorderClass: "absolute inset-0 pointer-events-none rounded-2xl border border-slate-300/40 animate-pulse",
+        pulseBorderClass: "absolute inset-0 pointer-events-none rounded-2xl border border-slate-300/100 animate-pulse",
         iconBgClass: "bg-slate-500/20 text-slate-200 shadow-[0_0_15px_rgba(148,163,184,0.3)]",
         yearClass: "text-slate-300/80",
         titleClass: "text-slate-100",

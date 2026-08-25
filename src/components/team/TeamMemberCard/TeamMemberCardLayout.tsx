@@ -33,7 +33,7 @@ export function TeamMemberCardLayout({
       )}
 
       {badgeData && (
-        <div className="pointer-events-none absolute -inset-[2px] -z-10 overflow-hidden rounded-2xl opacity-60 sm:opacity-40">
+        <div className="pointer-events-none absolute -inset-[2px] -z-10 overflow-hidden rounded-2xl opacity-100">
           <div
             className="absolute inset-[-100%] blur-[2px] animate-[spin_6s_linear_infinite]"
             style={{
