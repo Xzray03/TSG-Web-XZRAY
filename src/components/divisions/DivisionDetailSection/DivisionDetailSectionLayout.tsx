@@ -44,13 +44,7 @@ export function DivisionDetailSectionLayout({
 
       <div className="mx-auto grid max-w-6xl items-center gap-16 lg:grid-cols-2">
         {/* Big logo showcase */}
-        <motion.div
-          initial={{ opacity: 0, scale: 0.9 }}
-          whileInView={{ opacity: 1, scale: 1 }}
-          viewport={{ once: true, margin: "-100px" }}
-          transition={{ duration: 0.7, ease: [0.16, 1, 0.3, 1] }}
-          className={cn("relative mx-auto", isReversed ? "lg:order-2" : "lg:order-1")}
-        >
+        <div className={cn("relative mx-auto", isReversed ? "lg:order-2" : "lg:order-1")}>
           <div className="relative flex h-72 w-72 items-center justify-center sm:h-[22rem] sm:w-[22rem]">
             {/* Pulsing rings */}
             <motion.span
@@ -114,20 +108,16 @@ export function DivisionDetailSectionLayout({
             )}
 
             {/* Number badge */}
-            <motion.span
-              initial={{ scale: 0, rotate: -20 }}
-              whileInView={{ scale: 1, rotate: 0 }}
-              viewport={{ once: true }}
-              transition={{ delay: 0.4, type: "spring", stiffness: 260, damping: 18 }}
+            <div
               className={cn(
-                "glass-strong absolute -bottom-2 -right-2 flex h-16 w-16 items-center justify-center rounded-2xl border font-display text-xl font-bold text-white gpu-accelerated",
+                "glass-strong absolute -bottom-2 -right-2 flex h-16 w-16 items-center justify-center rounded-2xl border font-display text-xl font-bold text-white gpu-accelerated shadow-lg",
                 theme.ring
               )}
             >
               {numberLabel}
-            </motion.span>
+            </div>
           </div>
-        </motion.div>
+        </div>
 
         {/* Text content */}
         <motion.div

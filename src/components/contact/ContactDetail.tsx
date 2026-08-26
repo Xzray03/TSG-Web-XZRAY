@@ -4,11 +4,9 @@ import { motion } from "framer-motion";
 import {
   Mail,
   MapPin,
-  MessageCircle,
-  Instagram,
-  Youtube,
   Clock,
 } from "lucide-react";
+import { FaInstagram, FaYoutube, FaWhatsapp } from "react-icons/fa";
 import type { SiteSettings } from "@/types";
 
 interface ContactDetailProps {
@@ -22,7 +20,7 @@ export function ContactDetail({ settings }: ContactDetailProps) {
       label: "WhatsApp",
       value: settings.whatsappNumber,
       href: `https://wa.me/${settings.whatsappNumber.replace(/[^0-9]/g, "")}`,
-      icon: MessageCircle,
+      icon: FaWhatsapp,
       color: "text-[#25D366] bg-[#25D366]/15",
     },
     {
@@ -38,7 +36,7 @@ export function ContactDetail({ settings }: ContactDetailProps) {
       label: "Instagram",
       value: "@thesmartgeneration",
       href: settings.instagramUrl,
-      icon: Instagram,
+      icon: FaInstagram,
       color: "text-accent bg-accent/15",
     },
     settings.youtubeUrl && {
@@ -46,7 +44,7 @@ export function ContactDetail({ settings }: ContactDetailProps) {
       label: "YouTube",
       value: "The Smart Generation",
       href: settings.youtubeUrl,
-      icon: Youtube,
+      icon: FaYoutube,
       color: "text-red-400 bg-red-400/15",
     },
   ].filter(Boolean) as {
@@ -57,6 +55,13 @@ export function ContactDetail({ settings }: ContactDetailProps) {
     icon: typeof Mail;
     color: string;
   }[];
+
+  const mapsUrl = settings.mapsEmbedUrl?.includes("pb=")
+    ? (() => {
+        const match = settings.mapsEmbedUrl.match(/!2d([0-9.]+)!3d([0-9.]+)/);
+        return match ? `https://www.google.com/maps?q=${match[2]},${match[1]}` : `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(settings.address)}`;
+      })()
+    : settings.mapsEmbedUrl || `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(settings.address)}`;
 
   return (
     <section className="relative px-6 py-20 sm:px-10 lg:px-16">
@@ -128,7 +133,7 @@ export function ContactDetail({ settings }: ContactDetailProps) {
               </span>
               <div>
                 <p className="text-xs text-slate-500">Alamat</p>
-                <p className="text-sm font-medium text-white">
+                <p className="mt-0.5 text-sm font-medium text-white">
                   {settings.address}
                 </p>
               </div>

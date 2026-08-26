@@ -1,7 +1,8 @@
 "use client";
 
 import { motion } from "framer-motion";
-import { Mail, MapPin, MessageCircle, Send } from "lucide-react";
+import { Mail, MapPin } from "lucide-react";
+import { FaWhatsapp, FaInstagram } from "react-icons/fa";
 import type { SiteSettings } from "@/types";
 
 interface ContactProps {
@@ -15,7 +16,7 @@ export function Contact({ settings }: ContactProps) {
       label: "WhatsApp",
       value: settings.whatsappNumber,
       href: `https://wa.me/${settings.whatsappNumber.replace(/[^0-9]/g, "")}`,
-      icon: MessageCircle,
+      icon: FaWhatsapp,
     },
     {
       id: "email",
@@ -29,7 +30,7 @@ export function Contact({ settings }: ContactProps) {
       label: "Instagram",
       value: "@tsgbogor",
       href: settings.instagramUrl,
-      icon: Send,
+      icon: FaInstagram,
     },
   ].filter(Boolean) as {
     id: string;
@@ -38,6 +39,13 @@ export function Contact({ settings }: ContactProps) {
     href: string;
     icon: typeof Mail;
   }[];
+
+  const mapsUrl = settings.mapsEmbedUrl?.includes("pb=")
+    ? (() => {
+        const match = settings.mapsEmbedUrl.match(/!2d([0-9.]+)!3d([0-9.]+)/);
+        return match ? `https://www.google.com/maps?q=${match[2]},${match[1]}` : `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(settings.address)}`;
+      })()
+    : settings.mapsEmbedUrl || `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(settings.address)}`;
 
   return (
     <section className="relative px-6 py-24 sm:px-10 lg:px-16">
@@ -105,7 +113,7 @@ export function Contact({ settings }: ContactProps) {
             </span>
             <div>
               <p className="text-xs text-slate-500">Alamat</p>
-              <p className="text-sm font-medium text-white">
+              <p className="mt-0.5 text-sm font-medium text-white">
                 {settings.address}
               </p>
             </div>

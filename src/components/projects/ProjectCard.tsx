@@ -25,7 +25,6 @@ export function ProjectCard({ project, index }: ProjectCardProps) {
       whileInView={{ opacity: 1, y: 0 }}
       viewport={{ once: true, margin: "-60px" }}
       transition={{ duration: 0.5, delay: index * 0.06 }}
-      whileHover={{ y: -4 }}
       className="group h-full"
     >
       <Link
@@ -37,13 +36,14 @@ export function ProjectCard({ project, index }: ProjectCardProps) {
             src={project.coverImage}
             alt={project.title}
             fill
-            className="object-cover transition-transform duration-300 ease-out group-hover:scale-105"
+            className="object-cover transition-transform duration-500 ease-out group-hover:scale-110"
             sizes="(max-width: 640px) 100vw, 33vw"
           />
           <div className="absolute inset-0 bg-gradient-to-t from-background via-background/10 to-transparent" />
           <span
             className={cn(
               "glass-strong absolute left-3 top-3 rounded-full border px-3 py-1 text-[11px] font-medium",
+// @ts-ignore
               statusStyles[project.status]
             )}
           >

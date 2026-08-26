@@ -1,6 +1,9 @@
+"use client";
+
+import { useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
-import { Zap, Instagram, Youtube, Mail } from "lucide-react";
+import { Zap, Mail } from "lucide-react";
 import type { SiteSettings } from "@/types";
 
 interface FooterAboutProps {
@@ -16,6 +19,8 @@ export function FooterAbout({
   handleLinkClick,
   socialLinks,
 }: FooterAboutProps) {
+  const [hoveredIndex, setHoveredIndex] = useState<number | null>(null);
+
   return (
     <div>
       <div className="flex items-center gap-2.5">
@@ -60,19 +65,51 @@ export function FooterAbout({
         Berdiri sejak {settings.foundedYear}
       </p>
 
-      <div className="mt-5 flex items-center gap-2">
-        {socialLinks.map((social) => (
-          <a
-            key={social.platform}
-            href={social.href}
-            target="_blank"
-            rel="noopener noreferrer"
-            aria-label={social.label}
-            className="glass flex h-9 w-9 items-center justify-center rounded-full text-slate-400 transition-colors duration-200 hover:text-accent"
-          >
-            <social.icon className="h-4 w-4" />
-          </a>
-        ))}
+      <div 
+        className="mt-5 flex items-center gap-2.5"
+        onMouseLeave={() => setHoveredIndex(null)}
+      >
+        {socialLinks.map((social, index) => {
+          const isHovered = hoveredIndex === index;
+          const isAnyHovered = hoveredIndex !== null;
+
+          let scale = 1;
+          let translateY = 0;
+          let translateX = 0;
+
+          if (isHovered) {
+            scale = 1.25;
+            translateY = -6;
+            translateX = 0;
+          } else if (isAnyHovered) {
+            scale = 0.94;
+            translateY = 0;
+            const distance = index - hoveredIndex;
+            translateX = distance > 0 ? distance * 4 + 3 : distance * 4 - 3;
+          }
+
+          return (
+            <a
+              key={social.platform}
+              href={social.href}
+              target="_blank"
+              rel="noopener noreferrer"
+              aria-label={social.label}
+              onMouseEnter={() => setHoveredIndex(index)}
+              className="glass flex h-10 w-10 items-center justify-center rounded-full text-slate-400 hover:text-accent"
+              style={{
+                transform: `translate3d(${translateX}px, ${translateY}px, 0) scale(${scale})`,
+                transitionProperty: "transform, color, background-color",
+                transitionDuration: "250ms",
+                transitionTimingFunction: "cubic-bezier(0.16, 1, 0.3, 1)",
+                willChange: "transform",
+                zIndex: isHovered ? 20 : 10,
+              }}
+            >
+              {social.icon ? <social.icon className="h-4 w-4" /> : null}
+            </a>
+          );
+        })}
       </div>
     </div>
   );

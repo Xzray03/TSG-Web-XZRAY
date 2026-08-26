@@ -1,5 +1,6 @@
 import Link from "next/link";
 import Image from "next/image";
+import { usePathname } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import { Menu, X, Zap } from "lucide-react";
 import { navLinks } from "@/data/nav";
@@ -26,6 +27,8 @@ export function NavbarMobile({
   logoUrl,
   shortName,
 }: NavbarMobileProps) {
+  const pathname = usePathname();
+
   return (
     <>
       <AnimatePresence>
@@ -45,22 +48,33 @@ export function NavbarMobile({
               transition={{ duration: 0.2 }}
               className="flex h-full flex-col items-center justify-center gap-2 px-6"
             >
-              {navLinks.map((link, index) => (
-                <motion.div
-                  key={link.href}
-                  initial={{ opacity: 0, y: 8 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ duration: 0.2, delay: 0.02 + index * 0.03 }}
-                >
-                  <Link
-                    href={link.href}
-                    onClick={(e) => handleNavClick(e, link.href)}
-                    className="block py-3 text-center font-display text-2xl font-medium text-slate-200 transition-colors hover:text-accent"
+              {navLinks.map((link, index) => {
+                const isActive = link.href === "/" 
+                  ? pathname === "/" 
+                  : pathname === link.href || pathname?.startsWith(`${link.href}/`);
+
+                return (
+                  <motion.div
+                    key={link.href}
+                    initial={{ opacity: 0, y: 8 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ duration: 0.2, delay: 0.02 + index * 0.03 }}
                   >
-                    {link.label}
-                  </Link>
-                </motion.div>
-              ))}
+                    <Link
+                      href={link.href}
+                      onClick={(e) => handleNavClick(e, link.href)}
+                      className={cn(
+                        "block rounded-full px-6 py-3 text-center font-display text-2xl font-medium transition-colors",
+                        isActive
+                          ? "bg-white/15 text-white backdrop-blur-md"
+                          : "text-slate-300 hover:text-accent"
+                      )}
+                    >
+                      {link.label}
+                    </Link>
+                  </motion.div>
+                );
+              })}
 
               <Link
                 href={EXTERNAL_URLS.registration}

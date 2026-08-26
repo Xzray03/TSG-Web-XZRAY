@@ -3,7 +3,8 @@
 import { useState, useEffect, MouseEvent } from "react";
 import { usePathname } from "next/navigation";
 import { AnimatePresence } from "framer-motion";
-import { Mail, Instagram, Youtube } from "lucide-react";
+import { Mail } from "lucide-react";
+import { FaInstagram, FaYoutube } from "react-icons/fa";
 import { LogoModal } from "./LogoModal";
 import type { Division, SiteSettings } from "@/types";
 import { FooterLayout } from "./Footer/FooterLayout";
@@ -42,13 +43,13 @@ export function Footer({ divisions, settings }: FooterProps) {
       platform: "instagram",
       label: "Instagram",
       href: settings.instagramUrl,
-      icon: Instagram,
+      icon: FaInstagram,
     },
     settings.youtubeUrl && {
       platform: "youtube",
       label: "YouTube",
       href: settings.youtubeUrl,
-      icon: Youtube,
+      icon: FaYoutube,
     },
     {
       platform: "email",
@@ -56,7 +57,7 @@ export function Footer({ divisions, settings }: FooterProps) {
       href: `mailto:${settings.contactEmail}`,
       icon: Mail,
     },
-  ].filter(Boolean) as { platform: string; label: string; href: string; icon: typeof Mail }[];
+  ].filter(Boolean) as { platform: string; label: string; href: string; icon: typeof FaInstagram }[];
 
   return (
     <FooterLayout>

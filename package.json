@@ -3,8 +3,8 @@
   "version": "1.0.0",
   "private": true,
   "scripts": {
-    "dev": "cross-env NODE_OPTIONS='--localstorage-file ./storage.json' next dev --webpack",
-    "build": "cross-env NODE_OPTIONS='--localstorage-file ./storage.json' next build --webpack",
+    "dev": "cross-env NODE_OPTIONS='--localstorage-file ./storage.json' next dev --turbopack",
+    "build": "cross-env NODE_OPTIONS='--localstorage-file ./storage.json' next build --turbopack",
     "start": "cross-env next start",
     "lint": "cross-env eslint .",
     "typegen": "cross-env sanity typegen generate"
@@ -21,6 +21,7 @@
     "next-sanity": "13.3.3",
     "react": "19.2.8",
     "react-dom": "19.2.8",
+    "react-icons": "5.7.0",
     "sanity": "6.10.1",
     "styled-components": "6.5.3",
     "tailwind-merge": "3.6.0",

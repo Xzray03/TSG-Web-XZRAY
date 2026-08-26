@@ -20,7 +20,7 @@ export function TeamMemberCardBadge({ badgeKey }: TeamMemberCardBadgeProps) {
             badge.iconBg
           )}
         >
-          <badge.icon className="h-4 w-4" strokeWidth={2.5} />
+          {badge.icon ? <badge.icon className="h-4 w-4" strokeWidth={2.5} /> : null}
         </span>
       </Tooltip>
     </span>

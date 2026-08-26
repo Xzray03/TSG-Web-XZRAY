@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Info } from "lucide-react";
-import { getSiteSettings, getAboutContent, getAchievements } from "@/sanity/queries";
+import { getSiteSettings, getAboutContent } from "@/sanity/queries";
+import { getCachedAchievementsFiltered } from "@/sanity/serverCache";
 import { VisionMission } from "@/components/about/VisionMission";
 import { AboutAchievements } from "@/components/about/AboutAchievements";
 
@@ -12,11 +13,18 @@ export const metadata: Metadata = {
     "Visi, misi, dan rekam jejak prestasi The Smart Generation (TSG).",
 };
 
-export default async function AboutPage() {
-  const [settings, aboutContent, achievements] = await Promise.all([
+interface AboutPageProps {
+  searchParams: Promise<{ level?: string }>;
+}
+
+export default async function AboutPage({ searchParams }: AboutPageProps) {
+  const params = await searchParams;
+  const activeLevel = params.level ?? "all";
+
+  const [settings, aboutContent, { achievements, stats }] = await Promise.all([
     getSiteSettings(),
     getAboutContent(),
-    getAchievements(),
+    getCachedAchievementsFiltered(activeLevel),
   ]);
 
   return (
@@ -38,7 +46,11 @@ export default async function AboutPage() {
       </div>
 
       <VisionMission content={aboutContent} />
-      <AboutAchievements achievements={achievements} />
+      <AboutAchievements
+        achievements={achievements}
+        stats={stats}
+        activeLevel={activeLevel}
+      />
     </div>
   );
 }

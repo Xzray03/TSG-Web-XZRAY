@@ -2,8 +2,9 @@
 
 import Image from "next/image";
 import { motion } from "framer-motion";
-import { Instagram, Linkedin, Mail } from "lucide-react";
-import { badgeConfig, defaultTeamGlowRgb } from "@/lib/badge-config";
+import { Mail, Video } from "lucide-react";
+import { FaInstagram } from "react-icons/fa";
+import { badgeConfig } from "@/lib/badge-config";
 import { Tooltip } from "@/components/ui/Tooltip";
 import { cn } from "@/lib/utils";
 import type { TeamMember } from "@/types";
@@ -14,8 +15,8 @@ interface TeamCardProps {
 }
 
 const socialIcons = {
-  instagram: Instagram,
-  linkedin: Linkedin,
+  instagram: FaInstagram,
+  linkedin: Video,
   email: Mail,
 } as const;
 
@@ -51,7 +52,7 @@ export function TeamCard({ member, index }: TeamCardProps) {
             <span
               className="flex h-8 w-8 items-center justify-center rounded-full bg-slate-900/60 text-slate-200 backdrop-blur-md"
             >
-              <badge.icon className="h-4 w-4" strokeWidth={2.5} />
+              {badge.icon ? <badge.icon className="h-4 w-4" strokeWidth={2.5} /> : null}
             </span>
           </Tooltip>
         </span>
@@ -75,6 +76,7 @@ export function TeamCard({ member, index }: TeamCardProps) {
           <div className="absolute bottom-0 left-0 right-0 flex translate-y-2 items-center justify-center gap-2 p-4 opacity-0 transition-all duration-200 ease-out group-hover:translate-y-0 group-hover:opacity-100">
             {socialEntries.map(([platform, href]) => {
               const Icon = socialIcons[platform];
+              if (!Icon) return null;
               return (
                 <a
                   key={platform}

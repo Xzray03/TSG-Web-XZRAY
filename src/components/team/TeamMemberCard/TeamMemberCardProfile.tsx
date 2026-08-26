@@ -1,7 +1,8 @@
 import Image from "next/image";
 import { Tooltip } from "@/components/ui/Tooltip";
 import { motion } from "framer-motion";
-import { Instagram, Linkedin, Mail } from "lucide-react";
+import { Mail, Video } from "lucide-react";
+import { FaInstagram } from "react-icons/fa";
 import { cn } from "@/lib/utils";
 import type { TeamMember } from "@/types";
 
@@ -11,8 +12,8 @@ interface TeamMemberCardProfileProps {
 }
 
 const socialIcons = {
-  instagram: Instagram,
-  linkedin: Linkedin,
+  instagram: FaInstagram,
+  linkedin: Video,
   email: Mail,
 } as const;
 
@@ -41,6 +42,7 @@ export function TeamMemberCardProfile({ member, isExpanded }: TeamMemberCardProf
           <div className="absolute bottom-2 left-0 right-0 flex translate-y-2 items-center justify-center gap-2 p-4 opacity-0 transition-all duration-200 ease-out group-hover/profile:translate-y-0 group-hover/profile:opacity-100 z-20">
             {socialEntries.map(([platform, href]) => {
               const Icon = socialIcons[platform];
+              if (!Icon) return null;
               return (
                 <a
                   key={platform}

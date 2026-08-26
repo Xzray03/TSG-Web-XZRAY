@@ -3,7 +3,8 @@
 import { useState } from "react";
 import Image from "next/image";
 import { motion } from "framer-motion";
-import { ChevronDown, Instagram, Cake } from "lucide-react";
+import { ChevronDown, Cake } from "lucide-react";
+import { FaInstagram } from "react-icons/fa";
 import { badgeConfig } from "@/lib/badge-config";
 import { Tooltip } from "@/components/ui/Tooltip";
 import { cn } from "@/lib/utils";
@@ -84,7 +85,7 @@ export function TeamMemberCard({ member, index }: TeamMemberCardProps) {
                 className="flex items-center justify-between text-slate-500 transition-colors hover:text-accent"
               >
                 <span className="flex items-center gap-1.5">
-                  <Instagram className="h-3.5 w-3.5 text-primary" />
+                  <FaInstagram className="h-3.5 w-3.5 text-primary" />
                   Instagram
                 </span>
                 <span className="text-white">Lihat profil</span>
