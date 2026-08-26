@@ -1,0 +1,9 @@
+allowBuilds:
+    esbuild: true
+    unrs-resolver: true
+
+overrides:
+    uuid: 14.0.2
+    eslint: 9.39.5
+    typescript: 6.0.3
+    "@portabletext/editor": 7.12.2
