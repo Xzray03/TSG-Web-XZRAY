@@ -25,7 +25,7 @@ const birthDateFormatter = new Intl.DateTimeFormat("id-ID", {
 
 export function TeamMemberCard({ member, index }: TeamMemberCardProps) {
   const [isExpanded, setIsExpanded] = useState(false);
-  const badge = member.badge ? badgeConfig[member.badge] : null;
+  const badge = member.badge;
   const hasAchievements = member.achievements.length > 0;
 
   return (

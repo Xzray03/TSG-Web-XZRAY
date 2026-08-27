@@ -1,4 +1,3 @@
-import { motion } from "main-framer" // wait, framer-motion
 import { motion as motionDom } from "framer-motion";
 
 interface FooterLayoutProps {
