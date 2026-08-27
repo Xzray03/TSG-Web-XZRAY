@@ -7,8 +7,9 @@ import { ScrollToTopButton } from "@/components/layout/ScrollToTopButton";
 import { IntroLoader } from "@/components/layout/IntroLoader";
 import { MouseGuard } from "@/components/layout/MouseGuard";
 import { WaterRippleEffect } from "@/components/layout/WaterRippleEffect";
+import { RobotProvider } from "@/components/layout/RobotContext";
 import { getDivisions, getSiteSettings } from "@/sanity/queries";
-import "../globals.css";
+import "@/app/globals.css";
 
 // Selalu ambil data terbaru dari Sanity, jangan pakai cache halaman.
 export const revalidate = 0;
@@ -92,14 +93,16 @@ export default async function SiteLayout({
   return (
     <html lang="id" data-scroll-behavior="smooth" className={`${spaceGrotesk.variable} ${inter.variable}`}>
       <body className="bg-background font-body antialiased">
-        <WaterRippleEffect />
-        <MouseGuard />
-        <IntroLoader />
-        <Navbar shortName={settings.shortName} logoUrl={settings.logoUrl} />
-        <ScrollToTopButton />
-        <main>{children}</main>
-        <Footer divisions={divisions} settings={settings} />
-        <FloatingWhatsApp whatsappNumber={settings.whatsappNumber} />
+        <RobotProvider>
+          <WaterRippleEffect />
+          <MouseGuard />
+          <IntroLoader />
+          <Navbar shortName={settings.shortName} logoUrl={settings.logoUrl} />
+          <ScrollToTopButton />
+          <main>{children}</main>
+          <Footer divisions={divisions} settings={settings} />
+          <FloatingWhatsApp whatsappNumber={settings.whatsappNumber} />
+        </RobotProvider>
       </body>
     </html>
   );

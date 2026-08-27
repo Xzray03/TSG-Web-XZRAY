@@ -12,7 +12,6 @@ interface FloatingWhatsAppProps {
 export function FloatingWhatsApp({ whatsappNumber }: FloatingWhatsAppProps) {
   const [showBubble, setShowBubble] = useState(false);
   const [isJumping, setIsJumping] = useState(false);
-  const [shouldStop, setShouldStop] = useState(false);
   const hideTimerRef = useRef<NodeJS.Timeout | null>(null);
   const { isExcited } = useRobot();
 
@@ -121,12 +120,9 @@ export function FloatingWhatsApp({ whatsappNumber }: FloatingWhatsAppProps) {
         }
         transition={
           activeJumping
-            ? { duration: 0.45, repeat: isExcited && !shouldStop ? Infinity : 0, ease: "easeInOut", onRepeat: () => { if (!isExcited) setShouldStop(true); } }
+            ? { duration: isExcited ? 0.45 : 0.6, repeat: isExcited ? Infinity : 0, ease: "easeInOut" }
             : { duration: 2.8, repeat: Infinity, ease: "easeInOut" }
         }
-        onAnimationComplete={() => {
-          if (!isExcited) setShouldStop(false);
-        }}
         className="pointer-events-auto -mb-3 drop-shadow-[0_10px_20px_rgba(6,182,212,0.35)] cursor-pointer"
       >
         <svg width="80" height="80" viewBox="0 0 100 100" fill="none">
@@ -265,7 +261,7 @@ export function FloatingWhatsApp({ whatsappNumber }: FloatingWhatsAppProps) {
         }
         transition={
           activeJumping
-            ? { duration: 0.45, repeat: isExcited ? Infinity : 0, times: [0, 0.3, 0.7, 0.85, 1], ease: "easeInOut" }
+            ? { duration: isExcited ? 0.45 : 0.6, repeat: isExcited ? Infinity : 0, times: [0, 0.3, 0.7, 0.85, 1], ease: "easeInOut" }
             : { duration: 0.3 }
         }
         className="relative z-10 flex h-14 w-14 items-center justify-center rounded-full bg-[#25D366] text-white shadow-[0_0_30px_-6px_rgba(37,211,102,0.7)] origin-bottom"

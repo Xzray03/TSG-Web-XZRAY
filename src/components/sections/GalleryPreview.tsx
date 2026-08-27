@@ -69,11 +69,17 @@ export function GalleryPreview({ images }: GalleryPreviewProps) {
           className="mt-14 flex flex-wrap justify-center gap-4"
         >
           {previewImages.map((item, index) => (
-            <motion.button
+            <div
               key={item.id}
-              type="button"
               onClick={() => setSelected(item)}
-              whileHover={{ y: -4 }}
+              role="button"
+              tabIndex={0}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" || e.key === " ") {
+                  e.preventDefault();
+                  setSelected(item);
+                }
+              }}
               className="group relative aspect-[4/5] w-[calc(50%-0.5rem)] overflow-hidden rounded-2xl border border-white/[0.08] sm:w-[calc(33.333%-0.75rem)] text-left focus:outline-none cursor-pointer"
             >
               <Image
@@ -92,7 +98,7 @@ export function GalleryPreview({ images }: GalleryPreviewProps) {
                   </span>
                 </div>
               </div>
-            </motion.button>
+            </div>
           ))}
         </motion.div>
 

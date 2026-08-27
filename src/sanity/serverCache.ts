@@ -1,6 +1,6 @@
 import { cache } from "react";
-import type { GalleryItem, UniformShowcase, TeamCategory, TeamMember, AchievementItem } from "@/types";
-import { getGalleryImages, getUniformShowcase, getTeamCategories, getTeamMembers, getAchievements } from "@/sanity/queries";
+import type { GalleryItem, UniformShowcase, TeamCategory, TeamMember, AchievementItem, Project } from "@/types";
+import { getGalleryImages, getUniformShowcase, getTeamCategories, getTeamMembers, getAchievements, getProjects } from "@/sanity/queries";
 import { client } from "@/sanity/client";
 
 /**
@@ -66,6 +66,27 @@ async function fetchTeamWithRevCheck() {
   }
 }
 
+let cachedProjectRevSignature = "";
+let cachedProjectData: Project[] | null = null;
+
+async function fetchProjectWithRevCheck() {
+  try {
+    const meta: { _id: string; _rev: string }[] = await client.fetch(`*[_type == "project"] { _id, _rev }`);
+    const currentSignature = meta.map(m => `${m._id}:${m._rev}`).sort().join("|");
+
+    if (cachedProjectData && cachedProjectRevSignature === currentSignature) {
+      return cachedProjectData;
+    }
+
+    const projects = await getProjects();
+    cachedProjectRevSignature = currentSignature;
+    cachedProjectData = projects;
+    return cachedProjectData;
+  } catch {
+    return await getProjects();
+  }
+}
+
 export const getCachedGalleryFiltered = cache(async (category: string) => {
   const { images, uniform } = await fetchGalleryWithRevCheck();
   const filtered =
@@ -82,6 +103,17 @@ export const getCachedTeamFiltered = cache(async (catSlug?: string) => {
   const filtered = members.filter((m) => m.categories.includes(activeSlug));
 
   return { categories, members: filtered, activeSlug };
+});
+
+export const getCachedProjectsFiltered = cache(async (statusFilter?: string) => {
+  const projects = await fetchProjectWithRevCheck();
+  const activeStatus = statusFilter ?? "Semua";
+  const filtered =
+    activeStatus === "Semua"
+      ? projects
+      : projects.filter((p) => p.status === activeStatus);
+
+  return { projects: filtered, allProjects: projects, activeStatus };
 });
 
 export const getCachedAchievementsFiltered = cache(async (filterLevel: string) => {

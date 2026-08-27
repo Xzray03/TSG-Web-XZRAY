@@ -87,7 +87,7 @@ export async function smartFetchWithCache<T>(
   try {
     // 1. Ambil metadata ringan (_id dan _rev) untuk seluruh dokumen yang terlibat dalam query
     // Query metadata mengekstrak _id dan _rev saja agar sangat ringan.
-    const metadataQuery = query.replace(/{\s*[\s\S]*?\s*}/, "{ _id, _rev }");
+    const metadataQuery = query.replace(/(\[\d+\])?\s*\{\s*[\s\S]*?\s*\}/, "$1 { _id, _rev }");
     const remoteMetadata: CachedEntityMetadata[] = await client.fetch(metadataQuery);
 
     const localMap = getLocalMetadataMap();
