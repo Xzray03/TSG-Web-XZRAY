@@ -5,7 +5,6 @@ import Image from "next/image";
 import { motion } from "framer-motion";
 import { ChevronDown, Cake } from "lucide-react";
 import { FaInstagram } from "react-icons/fa";
-import { badgeConfig } from "@/lib/badge-config";
 import { Tooltip } from "@/components/ui/Tooltip";
 import { cn } from "@/lib/utils";
 import type { TeamMember } from "@/types";
@@ -25,11 +24,10 @@ const birthDateFormatter = new Intl.DateTimeFormat("id-ID", {
 
 export function TeamMemberCard({ member, index }: TeamMemberCardProps) {
   const [isExpanded, setIsExpanded] = useState(false);
-  const badge = member.badge;
   const hasAchievements = member.achievements.length > 0;
 
   return (
-    <TeamMemberCardLayout member={member} index={index} badge={badge}>
+    <TeamMemberCardLayout member={member} index={index}>
       <TeamMemberCardProfile member={member} isExpanded={isExpanded} />
 
       {/* Name + role */}
