@@ -2,7 +2,7 @@ import Link from "next/link";
 import Image from "next/image";
 import { usePathname } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
-import { Menu, X, Zap } from "lucide-react";
+import { Menu, X, Zap, ArrowLeft } from "lucide-react";
 import { navLinks } from "@/data/nav";
 import { EXTERNAL_URLS } from "@/data/url";
 import { cn } from "@/lib/utils";
@@ -41,6 +41,18 @@ export function NavbarMobile({
             style={{ isolation: "isolate", transform: "translateZ(0)" }}
             className="fixed inset-0 z-[99999] bg-background/98 backdrop-blur-2xl lg:hidden [backface-visibility:hidden]"
           >
+            {/* Top right close / return button */}
+            <div className="absolute right-6 top-6 z-50">
+              <button
+                type="button"
+                onClick={() => setIsMobileMenuOpen(false)}
+                aria-label="Kembali / Tutup menu"
+                className="flex h-11 w-11 items-center justify-center rounded-full glass-strong border border-white/15 text-white shadow-[0_4px_20px_rgba(0,0,0,0.5)] transition-transform hover:scale-105 active:scale-95"
+              >
+                <ArrowLeft className="h-5 w-5" />
+              </button>
+            </div>
+
             <motion.nav
               initial={{ opacity: 0, y: -8 }}
               animate={{ opacity: 1, y: 0 }}

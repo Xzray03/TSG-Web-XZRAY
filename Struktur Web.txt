@@ -1,122 +1,163 @@
-company-profile/
-├── .env.local
-├── .gitignore
-├── next.config.ts
-├── package.json
-├── postcss.config.mjs
-├── sanity.cli.ts
-├── sanity.config.ts
-├── tsconfig.json
-│
-└── src/
-    ├── app/
-    │   ├── globals.css
-    │   ├── (site)/                          ← grup route website utama
-    │   │   ├── layout.tsx
-    │   │   ├── page.tsx                      → Home
-    │   │   ├── about/page.tsx
-    │   │   ├── contact/page.tsx
-    │   │   ├── divisions/page.tsx
-    │   │   ├── events/page.tsx
-    │   │   ├── gallery/page.tsx
-    │   │   ├── project/
-    │   │   │   ├── page.tsx
-    │   │   │   └── [slug]/page.tsx
-    │   │   └── team/page.tsx
-    │   └── studio/                           ← Sanity Studio (/studio)
-    │       ├── layout.tsx
-    │       └── [[...tool]]/page.tsx
-    │
-    ├── components/
-    │   ├── about/
-    │   │   ├── AboutAchievements.tsx
-    │   │   └── VisionMission.tsx
-    │   ├── contact/
-    │   │   └── ContactDetail.tsx
-    │   ├── divisions/
-    │   │   └── DivisionDetailSection.tsx
-    │   ├── events/
-    │   │   ├── EventModal.tsx
-    │   │   ├── EventPreviewTile.tsx
-    │   │   ├── EventsPageClient.tsx
-    │   │   └── PastEventTimeline.tsx
-    │   ├── gallery/
-    │   │   ├── GalleryLightbox.tsx
-    │   │   ├── GalleryPageClient.tsx
-    │   │   └── UniformShowcase3D.tsx
-    │   ├── layout/
-    │   │   ├── FloatingWhatsApp.tsx
-    │   │   ├── Footer.tsx
-    │   │   ├── IntroLoader.tsx
-    │   │   └── Navbar.tsx
-    │   ├── projects/
-    │   │   ├── ProjectCard.tsx
-    │   │   ├── ProjectContent.tsx
-    │   │   └── ProjectPageClient.tsx
-    │   ├── sections/                         ← section-section di Home
-    │   │   ├── Achievements.tsx
-    │   │   ├── Contact.tsx
-    │   │   ├── DivisionOrbitShowcase.tsx
-    │   │   ├── Divisions.tsx
-    │   │   ├── EventsPreview.tsx
-    │   │   ├── FAQ.tsx
-    │   │   ├── GalleryPreview.tsx
-    │   │   ├── Hero.tsx
-    │   │   ├── TeamPreview.tsx
-    │   │   └── WhyJoin.tsx
-    │   ├── team/
-    │   │   ├── FlameAura.tsx                 ← aura versi "fire" (aktif skrg)
-    │   │   ├── TeamMemberCard.tsx
-    │   │   └── auras/                        ← varian aura yang bisa dicoba gantian
-    │   │       ├── AuroraAura.tsx
-    │   │       ├── EmberStormAura.tsx
-    │   │       ├── FlameAuraChase.tsx
-    │   │       └── MyCustomAura.tsx          ← template kosong buat kamu
-    │   └── ui/
-    │       ├── AnimatedCounter.tsx
-    │       ├── Button.tsx
-    │       ├── DivisionCard.tsx
-    │       ├── EventCard.tsx
-    │       ├── TeamCard.tsx                  ← versi simpel (dipakai di Home)
-    │       └── Tooltip.tsx
-    │
-    ├── data/
-    │   └── nav.ts                            ← struktur menu navbar/footer
-    │
-    ├── hooks/
-    │   ├── useCountdown.ts
-    │   └── useMousePosition.ts
-    │
-    ├── lib/
-    │   ├── badge-config.ts
-    │   ├── division-theme.ts
-    │   ├── format-date.ts
-    │   ├── icon-map.ts
-    │   └── utils.ts
-    │
-    ├── sanity/
-    │   ├── client.ts
-    │   ├── env.ts
-    │   ├── image.ts
-    │   ├── queries.ts                        ← SEMUA fungsi ambil data dari CMS
-    │   ├── structure.ts                      ← susunan menu Studio
-    │   ├── components/
-    │   │   └── HighlightedInput.tsx
-    │   └── schemaTypes/
-    │       ├── index.ts                      ← daftar semua schema
-    │       ├── aboutContent.ts               (singleton)
-    │       ├── achievement.ts
-    │       ├── division.ts
-    │       ├── event.ts
-    │       ├── faq.ts
-    │       ├── galleryImage.ts
-    │       ├── heroContent.ts                (singleton)
-    │       ├── project.ts
-    │       ├── siteSettings.ts               (singleton)
-    │       ├── teamCategory.ts
-    │       ├── teamMember.ts
-    │       ├── uniformShowcase.ts            (singleton)
-    │       └── whyJoinItem.ts
-    │
-    └── types/
-        └── index.ts                          ← SEMUA tipe TypeScript (satu file)
+# TSG-Web-XZRAY - Struktur & Penjelasan Direktori Proyek
+
+.
+├── Framework Utama.txt                                                          # Catatan ringkas versi framework & stack utama
+├── GEMINI.md                                                                    # Sistem instruksi AI & peta rute kode
+├── next.config.ts                                                               # Konfigurasi server Next.js & compiler
+├── package.json                                                                 # Manifest proyek, skrip, dan dependensi
+├── package-lock.json                                                            # Lockfile npm versi 1
+├── pnpm-lock.yaml                                                               # Lockfile pnpm resolusi versi dependensi persis
+├── pnpm-workspace.yaml                                                          # Konfigurasi workspace pnpm
+├── postcss.config.mjs                                                           # Konfigurasi PostCSS pipeline Tailwind CSS v4
+├── sanity.cli.ts                                                                # Konfigurasi Sanity CLI interface
+├── sanity.config.ts                                                             # Konfigurasi instance Sanity Studio
+├── Struktur Web.txt                                                             # Dokumentasi pohon direktori & penjelasan lengkap
+├── tsconfig.json                                                                # Konfigurasi compiler TypeScript & path mapping (@/*)
+└── src/                                                                         # Direktori utama source code aplikasi
+    ├── app/                                                                     # Next.js App Router (Halaman & Layout rute)
+    │   ├── globals.css                                                          # Pengaturan style global Tailwind & CSS variables
+    │   ├── (site)/                                                              # Route group utama untuk halaman publik website
+    │   │   ├── about/                                                           # Halaman Tentang Kami
+    │   │   │   └── page.tsx                                                     # Entry point halaman About (Server Component)
+    │   │   ├── contact/                                                         # Halaman Kontak & Lokasi
+    │   │   │   └── page.tsx                                                     # Entry point halaman Contact
+    │   │   ├── divisions/                                                       # Halaman Katalog Divisi Organisasi
+    │   │   │   └── page.tsx                                                     # Entry point halaman Divisions
+    │   │   ├── events/                                                          # Halaman Jadwal Kegiatan & Arsip Event
+    │   │   │   └── page.tsx                                                     # Entry point halaman Events
+    │   │   ├── gallery/                                                         # Halaman Galeri Media & 3D Uniform Showcase
+    │   │   │   └── page.tsx                                                     # Entry point halaman Gallery
+    │   │   ├── layout.tsx                                                       # Root layout untuk seluruh halaman publik situs
+    │   │   ├── page.tsx                                                         # Landing page utama (menggabungkan section komponen)
+    │   │   ├── project/                                                         # Halaman Katalog & Detail Project
+    │   │   │   ├── page.tsx                                                     # Halaman index daftar project
+    │   │   │   └── [slug]/                                                      # Sub-route dinamis detail project
+    │   │   │       └── page.tsx                                                 # Halaman detail studi kasus project berdasarkan slug
+    │   │   └── team/                                                            # Halaman Struktur Pengurus & Tim Organisasi
+    │   │       └── page.tsx                                                     # Entry point halaman Team
+    │   └── studio/                                                              # Area CMS Sanity Studio tersemat
+    │       ├── layout.tsx                                                       # Layout khusus halaman admin studio
+    │       └── [[...tool]]/                                                     # Catch-all route untuk antarmuka Sanity Studio
+    │           └── page.tsx                                                     # Titik masuk router Sanity Studio (/studio)
+    ├── components/                                                              # Kumpulan komponen UI modular aplikasi
+    │   ├── about/                                                               # Komponen khusus halaman About
+    │   │   ├── AboutAchievements.tsx                                            # Menampilkan catatan prestasi organisasi
+    │   │   └── VisionMission.tsx                                                # Blok tampilan Visi & Misi organisasi
+    │   ├── contact/                                                             # Komponen khusus halaman Contact
+    │   │   └── ContactDetail.tsx                                                # Widget informasi kontak & detail peta
+    │   ├── divisions/                                                           # Komponen khusus katalog Divisi
+    │   │   ├── DivisionDetailSection/                                           # Sub-komponen pendukung detail divisi
+    │   │   │   ├── DivisionDetailSectionLayout.tsx                              # Layout struktural detail divisi
+    │   │   │   └── InteractiveSkillTags.tsx                                     # Grid pill tag skill interaktif
+    │   │   └── DivisionDetailSection.tsx                                        # Kontainer utama detail divisi
+    │   ├── events/                                                              # Komponen khusus halaman Events
+    │   │   ├── EventModal.tsx                                                   # Dialog modal detail event mendalam
+    │   │   ├── EventPreviewTile.tsx                                             # Ubin grid untuk pratinjau event
+    │   │   ├── EventsPageClient.tsx                                             # State kontainer & filter klien untuk events
+    │   │   └── PastEventTimeline.tsx                                            # Garis waktu kronologis event masa lalu
+    │   ├── gallery/                                                             # Komponen khusus halaman Gallery
+    │   │   ├── GalleryLightbox.tsx                                              # Komponen penampil overlay gambar/media
+    │   │   ├── GalleryLightboxWrapper.tsx                                       # Pengelola state untuk lightbox galeri
+    │   │   ├── GalleryPageClient.tsx                                            # Kontainer state filter kategori galeri
+    │   │   └── UniformShowcase3D.tsx                                            # Widget interaktif 3D pameran atribut/seragam
+    │   ├── layout/                                                              # Komponen tata letak global (Navbar, Footer, dll)
+    │   │   ├── FloatingWhatsApp.tsx                                             # Tombol pintas melayang WhatsApp kontak
+    │   │   ├── Footer/                                                          # Sub-komponen modular Footer
+    │   │   │   ├── FooterAbout.tsx                                              # Widget ringkasan profil brand footer
+    │   │   │   ├── FooterContact.tsx                                            # Widget alamat & kontak footer
+    │   │   │   ├── FooterCopyright.tsx                                          # Bar hak cipta footer
+    │   │   │   ├── FooterDivision.tsx                                           # Tautan navigasi divisi organisasi
+    │   │   │   ├── FooterLayout.tsx                                             # Layout struktur grid footer
+    │   │   │   └── FooterQuickLink.tsx                                          # Tautan navigasi cepat footer
+    │   │   ├── Footer.tsx                                                       # Titik masuk komposisi Footer utama
+    │   │   ├── IntroLoader.tsx                                                  # Tirai transisi loading awal halaman pembuka
+    │   │   ├── LogoModal.tsx                                                    # Modal inspeksi aset logo brand
+    │   │   ├── MouseGuard.tsx                                                   # Pengaman pembatas interaksi kursor viewport
+    │   │   ├── Navbar/                                                          # Sub-komponen modular Navbar
+    │   │   │   ├── FloatingWhatsApp.tsx                                         # Tombol WhatsApp khusus bilah navigasi
+    │   │   │   ├── InteractiveNav.tsx                                           # Penanganan perilaku sticky & scroll navbar
+    │   │   │   ├── JoinButton.tsx                                               # Tombol ajakan bergabung organisasi
+    │   │   │   ├── NavbarLayout.tsx                                             # Pembungkus layout header navigasi
+    │   │   │   └── NavbarMobile.tsx                                             # Komponen drawer responsif perangkat seluler
+    │   │   ├── Navbar.tsx                                                       # Pengontrol navigasi utama
+    │   │   ├── RobotContext.tsx                                                 # Penyedia konteks interaktif asisten robot
+    │   │   ├── ScrollToTopButton.tsx                                            # Tombol melayang pengangkat halaman ke atas
+    │   │   └── WaterRippleEffect.tsx                                            # Efek riak air latar belakang (Canvas/CSS)
+    │   ├── projects/                                                            # Komponen khusus Project
+    │   │   ├── ProjectCard.tsx                                                  # Kartu pratinjau project individual
+    │   │   └── ProjectContent.tsx                                               # Renderer teks portabel isi bodi project
+    │   ├── sections/                                                            # Komponen bagian-bagian halaman utama (Landing Page)
+    │   │   ├── Achievements.tsx                                                 # Bagian statistik & grid pencapaian
+    │   │   ├── Contact.tsx                                                      # Bagian formulir kontak & info landing page
+    │   │   ├── DivisionOrbitShowcase.tsx                                        # Sorotan divisi dengan tata letak orbital
+    │   │   ├── Divisions.tsx                                                    # Ringkasan bagian divisi di halaman utama
+    │   │   ├── EventsPreview.tsx                                                # Spanduk pratinjau event mendatang
+    │   │   ├── FAQ.tsx                                                          # Bagian FAQ akordion yang dapat diperluas
+    │   │   ├── GalleryPreview.tsx                                               # Bagian pratinjau grid galeri foto/video
+    │   │   ├── Hero.tsx                                                         # Blok hero utama bagian atas landing page
+    │   │   ├── TeamPreview.tsx                                                  # Pratinjau tim kepemimpinan di halaman utama
+    │   │   └── WhyJoin.tsx                                                      # Bagian poin manfaat & proposisi nilai
+    │   ├── team/                                                                # Komponen khusus halaman Team
+    │   │   ├── TeamMemberCard/                                                  # Sub-komponen modular kartu anggota tim
+    │   │   │   ├── TeamMemberCardBadge.tsx                                      # Overlay lencana peran/divisi anggota
+    │   │   │   ├── TeamMemberCardLayout.tsx                                     # Pembungkus layout struktural kartu
+    │   │   │   └── TeamMemberCardProfile.tsx                                    # Kontainer detail biografi anggota
+    │   │   ├── TeamMemberCard.tsx                                               # Pembungkus kartu profil anggota tim
+    │   │   └── TeamPageClient.tsx                                               # Penanganan filter klien untuk daftar roster tim
+    │   └── ui/                                                                  # Komponen primitif UI yang dapat digunakan kembali
+    │       ├── AnimatedCounter.tsx                                              # Komponen animasi kenaikan angka statistik
+    │       ├── Button.tsx                                                       # Tombol dasar sistem desain yang dapat digunakan ulang
+    │       ├── DivisionCard.tsx                                                 # Kartu ringkasan divisi organisasi
+    │       ├── EventCard.tsx                                                    # Kartu jadwal acara kegiatan
+    │       ├── TeamCard.tsx                                                     # Kartu ringkas anggota tim
+    │       ├── Tooltip.tsx                                                      # Pembungkus tooltip melayang primitif
+    │       └── ViewportVirtualizer.tsx                                          # Pembungkus lazy rendering Intersection Observer
+    ├── data/                                                                    # Berkas data statis konfigurasi
+    │   ├── institude_about.ts                                                   # Metadata latar belakang organisasi statis
+    │   ├── nav.ts                                                               # Pemetaan konfigurasi statis menu navigasi
+    │   ├── url.ts                                                               # Utilitas resolusi URL lingkungan runtime
+    │   └── url_production.ts                                                    # Fallback konfigurasi URL produksi
+    ├── hooks/                                                                   # Kustom React Hooks
+    │   ├── useCountdown.ts                                                      # Hook React untuk hitung mundur tanggal target real-time
+    │   └── useMousePosition.ts                                                  # Hook React untuk melacak koordinat pointer global
+    ├── lib/                                                                     # Pustaka utilitas pembantu & konfigurasi
+    │   ├── achievement-styles.ts                                                # Peta gaya lencana tingkat pencapaian
+    │   ├── badge-config.ts                                                      # Konfigurasi tema & varian lencana global
+    │   ├── division-theme.ts                                                    # Kamus pemetaan warna per divisi organisasi
+    │   ├── format-date.ts                                                       # Fungsi utilitas pemformatan tanggal sadar-lokal
+    │   ├── icon-map.ts                                                          # Kamus ikon yang meresolusi string kunci ke ikon React
+    │   ├── server-countdown.ts                                                  # Utilitas matematika hitung mundur sisi server
+    │   └── utils.ts                                                             # Pembantu penggabung kelas CSS (`clsx` + `tailwind-merge`)
+    ├── sanity/                                                                  # Konfigurasi & integrasi Sanity CMS
+    │   ├── cacheClient.ts                                                       # Klien pengambilan data Sanity dengan singgahan memori
+    │   ├── client.ts                                                            # Instance klien API Sanity yang terkonfigurasi
+    │   ├── env.ts                                                               # Parser variabel lingkungan Sanity yang divalidasi
+    │   ├── image.ts                                                             # Schema / pembantu pembangun URL gambar Sanity
+    │   ├── queries/                                                             # Kumpulan kueri GROQ terpisah per modul data
+    │   │   ├── queries_achievements.ts                                          # Kueri GROQ untuk data pencapaian
+    │   │   ├── queries_divisions.ts                                             # Kueri GROQ untuk data divisi
+    │   │   ├── queries_events.ts                                                # Kueri GROQ untuk data agenda event
+    │   │   ├── queries_gallery.ts                                               # Kueri GROQ untuk gambar galeri media
+    │   │   ├── queries_project.ts                                               # Kueri GROQ untuk studi kasus project
+    │   │   ├── queries_site.ts                                                  # Kueri GROQ untuk metadata global situs
+    │   │   └── queries_team.ts                                                  # Kueri GROQ untuk data anggota tim
+    │   ├── queries.ts                                                           # Agregator pusat yang mengekspor semua kueri GROQ
+    │   ├── schemaTypes/                                                         # Skema dokumen Sanity CMS
+    │   │   ├── aboutContent.ts                                                  # Skema konten singleton About
+    │   │   ├── achievement.ts                                                   # Skema pencapaian individu
+    │   │   ├── division.ts                                                      # Skema divisi organisasi
+    │   │   ├── event.ts                                                         # Skema event agenda kegiatan
+    │   │   ├── faq.ts                                                           # Skema entri tanya jawab (FAQ)
+    │   │   ├── galleryImage.ts                                                  # Skema aset media galeri
+    │   │   ├── heroContent.ts                                                   # Skema teks banner hero utama
+    │   │   ├── index.ts                                                         # Array ekspor registrasi skema Sanity
+    │   │   ├── project.ts                                                       # Skema studi kasus project
+    │   │   ├── siteSettings.ts                                                  # Skema pengaturan global situs
+    │   │   ├── teamCategory.ts                                                  # Skema departemen/kategori tim
+    │   │   ├── teamMember.ts                                                    # Skema profil personel/anggota
+    │   │   ├── uniformShowcase.ts                                               # Skema aset pameran seragam 3D
+    │   │   └── whyJoinItem.ts                                                   # Skema poin proposisi nilai
+    │   ├── serverCache.ts                                                       # Pembungkus kueri data tersimpan di sisi server
+    │   └── structure.ts                                                         # Konfigurasi struktur penataan menu Sanity Studio
+    └── types/                                                                   # Definisi tipe data global proyek
+        └── index.ts                                                             # Antarmuka & tipe entitas TypeScript global
