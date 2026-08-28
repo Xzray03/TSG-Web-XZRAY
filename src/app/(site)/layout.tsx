@@ -6,6 +6,7 @@ import { FloatingWhatsApp } from "@/components/layout/FloatingWhatsApp";
 import { ScrollToTopButton } from "@/components/layout/ScrollToTopButton";
 import { IntroLoader } from "@/components/layout/IntroLoader";
 import { MouseGuard } from "@/components/layout/MouseGuard";
+import { DevToolsGuard } from "@/components/layout/DevToolsGuard";
 import { WaterRippleEffect } from "@/components/layout/WaterRippleEffect";
 import { RobotProvider } from "@/components/layout/RobotContext";
 import { getDivisions, getSiteSettings } from "@/sanity/queries";
@@ -93,9 +94,21 @@ export default async function SiteLayout({
   return (
     <html lang="id" data-scroll-behavior="smooth" className={`${spaceGrotesk.variable} ${inter.variable}`}>
       <body className="bg-background font-body antialiased">
+        <noscript>
+          <div className="fixed inset-0 z-[999999] flex flex-col items-center justify-center bg-[#020817] p-6 text-center text-white">
+            <div className="max-w-md rounded-2xl border border-white/10 bg-slate-900/80 p-8 shadow-2xl backdrop-blur-xl">
+              <div className="mb-4 text-4xl">⚠️</div>
+              <h1 className="font-display text-xl font-bold text-red-400">JavaScript Diperlukan</h1>
+              <p className="mt-3 text-sm text-slate-300 leading-relaxed">
+                Mohon aktifkan JavaScript pada peramban (browser) Anda untuk mengakses situs resmi The Smart Generation (TSG). Situs ini tidak dapat dimuat tanpa JavaScript.
+              </p>
+            </div>
+          </div>
+        </noscript>
         <RobotProvider>
           <WaterRippleEffect />
           <MouseGuard />
+          <DevToolsGuard />
           <IntroLoader />
           <Navbar shortName={settings.shortName} logoUrl={settings.logoUrl} />
           <ScrollToTopButton />

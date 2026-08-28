@@ -32,10 +32,10 @@ type ButtonProps = ButtonAsLink | ButtonAsButton;
 
 const variantStyles: Record<ButtonVariant, string> = {
   primary:
-    "glow-cyan bg-gradient-to-r from-primary to-accent text-background hover:scale-105 gpu-accelerated",
+    "glow-cyan bg-gradient-to-r from-primary to-accent text-background hover:scale-105 hover:-translate-y-1 hover:shadow-[0_12px_30px_-6px_rgba(34,211,238,0.45)] gpu-accelerated",
   secondary:
-    "glass border border-white/[0.08] text-white hover:border-accent/40 hover:bg-white/[0.08]",
-  ghost: "text-slate-300 hover:text-white hover:bg-white/5",
+    "glass border border-white/[0.08] text-white hover:border-accent/40 hover:bg-white/[0.08] hover:scale-105 hover:-translate-y-1 hover:shadow-[0_12px_30px_-6px_rgba(34,211,238,0.25)] gpu-accelerated",
+  ghost: "text-slate-300 hover:text-white hover:bg-white/5 hover:scale-105 hover:-translate-y-1 gpu-accelerated",
 };
 
 const sizeStyles: Record<ButtonSize, string> = {

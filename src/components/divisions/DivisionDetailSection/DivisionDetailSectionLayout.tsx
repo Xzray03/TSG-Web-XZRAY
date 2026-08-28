@@ -8,6 +8,7 @@ import { EXTERNAL_URLS } from "@/data/url";
 import { cn } from "@/lib/utils";
 import type { Division } from "@/types";
 import { InteractiveSkillTags } from "./InteractiveSkillTags";
+import { useRobot } from "@/components/layout/RobotContext";
 
 interface DivisionDetailSectionLayoutProps {
   division: Division;
@@ -28,6 +29,7 @@ export function DivisionDetailSectionLayout({
   const Icon = iconMap[division.icon] ?? iconMap.Bot;
   const isReversed = index % 2 === 1;
   const numberLabel = String(index + 1).padStart(2, "0");
+  const { setIsExcited } = useRobot();
 
   return (
     <section
@@ -147,13 +149,19 @@ export function DivisionDetailSectionLayout({
           )}
 
           <div className="mt-10">
-            <Link
-              href={EXTERNAL_URLS.registration}
-              className="glow-cyan inline-flex items-center gap-2 rounded-full bg-gradient-to-r from-primary to-blue px-6 py-3 text-sm font-semibold text-background transition-all duration-300 hover:bg-gradient-to-r hover:from-purple-500 hover:to-indigo-600 hover:text-white hover:shadow-[0_0_40px_-8px_rgba(168,85,247,0.45)] hover:scale-105 gpu-accelerated"
+            <div
+              onMouseEnter={() => setIsExcited(true)}
+              onMouseLeave={() => setIsExcited(false)}
+              className="inline-block"
             >
-              Gabung Divisi Ini
-              <ArrowRight className="h-4 w-4" />
-            </Link>
+              <Link
+                href={EXTERNAL_URLS.registration}
+                className="glow-cyan inline-flex items-center gap-2 rounded-full bg-gradient-to-r from-primary to-blue px-6 py-3 text-sm font-semibold text-background transition-all duration-300 hover:bg-gradient-to-r hover:from-purple-500 hover:to-indigo-600 hover:text-white hover:shadow-[0_0_40px_-8px_rgba(168,85,247,0.45)] hover:scale-105 gpu-accelerated"
+              >
+                Gabung Divisi Ini
+                <ArrowRight className="h-4 w-4" />
+              </Link>
+            </div>
           </div>
         </motion.div>
       </div>
