@@ -57,7 +57,7 @@ export function Footer({ divisions, settings }: FooterProps) {
       href: `mailto:${settings.contactEmail}`,
       icon: Mail,
     },
-  ].filter(Boolean) as { platform: string; label: string; href: string; icon: typeof FaInstagram }[];
+  ].filter(Boolean) as { platform: string; label: string; href: string; icon: any }[];
 
   return (
     <FooterLayout>

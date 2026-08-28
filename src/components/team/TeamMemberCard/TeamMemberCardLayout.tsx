@@ -7,7 +7,7 @@ import { TeamMemberCardBadge } from "./TeamMemberCardBadge";
 interface TeamMemberCardLayoutProps {
   member: TeamMember;
   index: number;
-  badge?: ReturnType<typeof badgeConfig[keyof typeof badgeConfig]> | null;
+  badge?: (typeof badgeConfig[keyof typeof badgeConfig]) | null;
   children: React.ReactNode;
 }
 

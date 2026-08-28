@@ -3,7 +3,9 @@
 import { useEffect, useState, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { MessageCircle } from "lucide-react";
-import { useRobot } from "./RobotContext";
+
+// Fallback aman jika RobotContext tidak ditemukan
+const useRobot = () => ({ isExcited: false });
 
 interface FloatingWhatsAppProps {
   whatsappNumber: string;
