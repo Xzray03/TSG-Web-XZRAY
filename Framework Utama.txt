@@ -1,0 +1,37 @@
+🏗️ Framework Utama
+Teknologi	Versi	Fungsi
+======================================
+Next.js		16	Framework React (App Router) — jadi fondasi seluruh website
+React		19	Library UI
+TypeScript	5.7	Bahasa (JavaScript + tipe data, biar error ketauan lebih awal)
+
+🎨 Styling & Animasi
+Teknologi	Versi	Fungsi
+======================================
+Tailwind CSS	4	Semua styling (bg-primary, rounded-2xl, dst)
+Framer Motion	11	Semua animasi (fade, hover, drag 3D seragam, aura border, dll)
+Lucide React	—	Semua ikon (yang bentuknya garis-garis, bukan gambar)
+
+🗄️ CMS / Admin Panel
+Teknologi		Versi	Fungsi
+======================================
+Sanity			5	Mesin CMS-nya (Studio di /studio)
+next-sanity		13	Jembatan penghubung Sanity ↔ Next.js
+@sanity/image-url	1	Optimasi & resize gambar dari Sanity
+@sanity/vision		5	Tool debug query GROQ di Studio
+@sanity/ui		2	Komponen UI buat kustomisasi tampilan form Studio
+@portabletext/react	3	Render teks kaya format (artikel Project — heading, gambar di tengah teks, dll)
+styled-components	6	Dependency wajib internal Sanity Studio (bukan kita pakai langsung)
+
+🧰 Utility Kecil
+Teknologi	Fungsi
+======================================
+clsx		Gabung className kondisional
+tailwind-merge	Nyelesain konflik class Tailwind yang bentrok
+
+
+🛠️ Dev Tools (bukan ikut ke-bundle ke user, cuma buat development)
+ESLint — cek kualitas/konsistensi kode
+@tailwindcss/postcss — plugin biar Tailwind v4 jalan
+
+Ringkasan singkat: "Next.js 16 + React 19 + TypeScript, Tailwind CSS 4 buat styling, Framer Motion buat semua animasi, dan Sanity buat CMS/admin panel-nya."

@@ -4,14 +4,13 @@ import { useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { Zap, Mail } from "lucide-react";
-import type { IconType } from "react-icons";
 import type { SiteSettings } from "@/types";
 
 interface FooterAboutProps {
   settings: SiteSettings;
   setIsLogoModalOpen: (open: boolean) => void;
   handleLinkClick: (e: React.MouseEvent<HTMLAnchorElement>, href: string) => void;
-  socialLinks: { platform: string; label: string; href: string; icon: IconType | typeof Mail | React.ComponentType<{ className?: string }> }[];
+  socialLinks: { platform: string; label: string; href: string; icon: typeof Mail }[];
 }
 
 export function FooterAbout({

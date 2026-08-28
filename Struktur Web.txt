@@ -1,0 +1,122 @@
+company-profile/
+├── .env.local
+├── .gitignore
+├── next.config.ts
+├── package.json
+├── postcss.config.mjs
+├── sanity.cli.ts
+├── sanity.config.ts
+├── tsconfig.json
+│
+└── src/
+    ├── app/
+    │   ├── globals.css
+    │   ├── (site)/                          ← grup route website utama
+    │   │   ├── layout.tsx
+    │   │   ├── page.tsx                      → Home
+    │   │   ├── about/page.tsx
+    │   │   ├── contact/page.tsx
+    │   │   ├── divisions/page.tsx
+    │   │   ├── events/page.tsx
+    │   │   ├── gallery/page.tsx
+    │   │   ├── project/
+    │   │   │   ├── page.tsx
+    │   │   │   └── [slug]/page.tsx
+    │   │   └── team/page.tsx
+    │   └── studio/                           ← Sanity Studio (/studio)
+    │       ├── layout.tsx
+    │       └── [[...tool]]/page.tsx
+    │
+    ├── components/
+    │   ├── about/
+    │   │   ├── AboutAchievements.tsx
+    │   │   └── VisionMission.tsx
+    │   ├── contact/
+    │   │   └── ContactDetail.tsx
+    │   ├── divisions/
+    │   │   └── DivisionDetailSection.tsx
+    │   ├── events/
+    │   │   ├── EventModal.tsx
+    │   │   ├── EventPreviewTile.tsx
+    │   │   ├── EventsPageClient.tsx
+    │   │   └── PastEventTimeline.tsx
+    │   ├── gallery/
+    │   │   ├── GalleryLightbox.tsx
+    │   │   ├── GalleryPageClient.tsx
+    │   │   └── UniformShowcase3D.tsx
+    │   ├── layout/
+    │   │   ├── FloatingWhatsApp.tsx
+    │   │   ├── Footer.tsx
+    │   │   ├── IntroLoader.tsx
+    │   │   └── Navbar.tsx
+    │   ├── projects/
+    │   │   ├── ProjectCard.tsx
+    │   │   ├── ProjectContent.tsx
+    │   │   └── ProjectPageClient.tsx
+    │   ├── sections/                         ← section-section di Home
+    │   │   ├── Achievements.tsx
+    │   │   ├── Contact.tsx
+    │   │   ├── DivisionOrbitShowcase.tsx
+    │   │   ├── Divisions.tsx
+    │   │   ├── EventsPreview.tsx
+    │   │   ├── FAQ.tsx
+    │   │   ├── GalleryPreview.tsx
+    │   │   ├── Hero.tsx
+    │   │   ├── TeamPreview.tsx
+    │   │   └── WhyJoin.tsx
+    │   ├── team/
+    │   │   ├── FlameAura.tsx                 ← aura versi "fire" (aktif skrg)
+    │   │   ├── TeamMemberCard.tsx
+    │   │   └── auras/                        ← varian aura yang bisa dicoba gantian
+    │   │       ├── AuroraAura.tsx
+    │   │       ├── EmberStormAura.tsx
+    │   │       ├── FlameAuraChase.tsx
+    │   │       └── MyCustomAura.tsx          ← template kosong buat kamu
+    │   └── ui/
+    │       ├── AnimatedCounter.tsx
+    │       ├── Button.tsx
+    │       ├── DivisionCard.tsx
+    │       ├── EventCard.tsx
+    │       ├── TeamCard.tsx                  ← versi simpel (dipakai di Home)
+    │       └── Tooltip.tsx
+    │
+    ├── data/
+    │   └── nav.ts                            ← struktur menu navbar/footer
+    │
+    ├── hooks/
+    │   ├── useCountdown.ts
+    │   └── useMousePosition.ts
+    │
+    ├── lib/
+    │   ├── badge-config.ts
+    │   ├── division-theme.ts
+    │   ├── format-date.ts
+    │   ├── icon-map.ts
+    │   └── utils.ts
+    │
+    ├── sanity/
+    │   ├── client.ts
+    │   ├── env.ts
+    │   ├── image.ts
+    │   ├── queries.ts                        ← SEMUA fungsi ambil data dari CMS
+    │   ├── structure.ts                      ← susunan menu Studio
+    │   ├── components/
+    │   │   └── HighlightedInput.tsx
+    │   └── schemaTypes/
+    │       ├── index.ts                      ← daftar semua schema
+    │       ├── aboutContent.ts               (singleton)
+    │       ├── achievement.ts
+    │       ├── division.ts
+    │       ├── event.ts
+    │       ├── faq.ts
+    │       ├── galleryImage.ts
+    │       ├── heroContent.ts                (singleton)
+    │       ├── project.ts
+    │       ├── siteSettings.ts               (singleton)
+    │       ├── teamCategory.ts
+    │       ├── teamMember.ts
+    │       ├── uniformShowcase.ts            (singleton)
+    │       └── whyJoinItem.ts
+    │
+    └── types/
+        └── index.ts                          ← SEMUA tipe TypeScript (satu file)

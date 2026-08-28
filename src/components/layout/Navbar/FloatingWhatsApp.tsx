@@ -3,7 +3,7 @@
 import { useEffect, useState, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { MessageCircle } from "lucide-react";
-import { useRobot } from "@/components/layout/RobotContext";
+import { useRobot } from "./RobotContext";
 
 interface FloatingWhatsAppProps {
   whatsappNumber: string;
