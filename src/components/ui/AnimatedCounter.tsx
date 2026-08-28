@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef } from "react";
-import { motion, useInView, useMotionValue, useSpring } from "framer-motion";
+import { motion, useMotionValue, useSpring } from "framer-motion";
 
 interface AnimatedCounterProps {
   value: number;
@@ -15,7 +15,6 @@ export function AnimatedCounter({
   className,
 }: AnimatedCounterProps) {
   const ref = useRef<HTMLSpanElement>(null);
-  const isInView = useInView(ref, { once: true, margin: "-80px" });
   const motionValue = useMotionValue(0);
   const springValue = useSpring(motionValue, {
     damping: 30,
@@ -23,10 +22,8 @@ export function AnimatedCounter({
   });
 
   useEffect(() => {
-    if (isInView) {
-      motionValue.set(value);
-    }
-  }, [isInView, motionValue, value]);
+    motionValue.set(value);
+  }, [motionValue, value]);
 
   useEffect(() => {
     const unsubscribe = springValue.on("change", (latest) => {
