@@ -25,7 +25,11 @@
     "sanity": "6.10.1",
     "styled-components": "6.5.3",
     "tailwind-merge": "3.6.0",
-    "uuid": "14.0.2"
+    "uuid": "14.0.2",
+    "@supabase/supabase-js": "2.112.4",
+    "@supabase/ssr": "0.12.5",
+    "@mediapipe/tasks-vision": "1.0.1",
+    "@vladmandic/face-api": "1.7.15"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "4.3.3",

@@ -9,6 +9,7 @@ import { MouseGuard } from "@/components/layout/MouseGuard";
 import { DevToolsGuard } from "@/components/layout/DevToolsGuard";
 import { WaterRippleEffect } from "@/components/layout/WaterRippleEffect";
 import { RobotProvider } from "@/components/layout/RobotContext";
+import { UserProfileBadge } from "@/components/layout/UserProfileBadge";
 import { getDivisions, getSiteSettings } from "@/sanity/queries";
 import "@/app/globals.css";
 
@@ -106,6 +107,7 @@ export default async function SiteLayout({
           </div>
         </noscript>
         <RobotProvider>
+          <UserProfileBadge />
           <WaterRippleEffect />
           <MouseGuard />
           <DevToolsGuard />
