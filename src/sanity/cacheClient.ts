@@ -30,9 +30,7 @@ export function setLocalMetadataMap(map: Record<string, string>): void {
   if (typeof window === "undefined") return;
   try {
     localStorage.setItem(METADATA_KEY, JSON.stringify(map));
-  } catch (e) {
-    console.error("Failed to save metadata map to localStorage", e);
-  }
+  } catch (e) {}
 }
 
 /**
@@ -55,9 +53,7 @@ export function setCachedEntity<T>(key: string, data: T): void {
   if (typeof window === "undefined") return;
   try {
     localStorage.setItem(STORAGE_PREFIX + key, JSON.stringify(data));
-  } catch (e) {
-    console.error("Failed to save entity to localStorage", e);
-  }
+  } catch (e) {}
 }
 
 /**
@@ -142,7 +138,6 @@ export async function smartFetchWithCache<T>(
 
     return transformed;
   } catch (err) {
-    console.warn("Smart cache fetch failed, falling back to local cache or default", err);
     const cachedData = getCachedEntity<T>(cacheKey);
     if (cachedData !== null) return cachedData;
     return fallbackValue;
