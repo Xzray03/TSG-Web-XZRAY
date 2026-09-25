@@ -41,3 +41,7 @@ yarn-error.log*
 /dist
 sanity.cli.ts
 sanity.config.ts
+
+# SQL files
+SQL.sql
+supabase_public_accounts_migration.sql

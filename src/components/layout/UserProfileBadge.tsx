@@ -24,13 +24,16 @@ import LogoutChoiceModal from "@/components/auth/LogoutChoiceModal";
 import DeleteAccountModal from "@/components/auth/DeleteAccountModal";
 import DeviceApprovalModal from "@/components/auth/DeviceApprovalModal";
 import ManageAccountModal from "@/components/auth/ManageAccountModal";
+import ManagePublicAccountModal from "@/components/auth/ManagePublicAccountModal";
 import { LoginVerifURLModal } from "@/components/auth/LoginVerifURLModal";
 import { LogoModal } from "@/components/layout/LogoModal";
 import { supabase } from "@/lib/supabase";
 import { getOrCreateDeviceKey } from "@/lib/deviceKeyManager";
 import { useSessionHeartbeat } from "@/hooks/useSessionHeartbeat";
+import { useScrollLock } from "@/hooks/useScrollLock";
 
 interface UserProfile {
+  id?: string;
   name: string;
   generation: string;
   iconDataUrl: string;
@@ -80,6 +83,7 @@ export function UserProfileBadge() {
   const [isLogoutChoiceOpen, setIsLogoutChoiceOpen] = useState(false);
   const [isDeleteAccountOpen, setIsDeleteAccountOpen] = useState(false);
   const [isManageAccountOpen, setIsManageAccountOpen] = useState(false);
+  const [isManagePublicAccountOpen, setIsManagePublicAccountOpen] = useState(false);
   const [isSequentialLogin, setIsSequentialLogin] = useState(false);
   const [isTsgMemberBlockModalOpen, setIsTsgMemberBlockModalOpen] =
     useState(false);
@@ -103,6 +107,22 @@ export function UserProfileBadge() {
 
   // Session lock
   const [pendingLoginRequest, setPendingLoginRequest] = useState<any>(null);
+
+  const isAnyModalOpen =
+    isModalOpen ||
+    isChoiceModalOpen ||
+    isFaceModalOpen ||
+    isPasswordModalOpen ||
+    isLogoutChoiceOpen ||
+    isDeleteAccountOpen ||
+    isManageAccountOpen ||
+    isManagePublicAccountOpen ||
+    isTsgMemberBlockModalOpen ||
+    isLogoModalOpen ||
+    isLoginOtpModalOpen ||
+    isNotTsgMemberAlertOpen;
+
+  useScrollLock(isAnyModalOpen);
 
   useSessionHeartbeat(profile.email || null, (req) => {
     setPendingLoginRequest(req);
@@ -198,6 +218,7 @@ export function UserProfileBadge() {
         const freshPhoto = data.tsgInfo?.photo || profile.iconDataUrl;
         const updatedProfile: UserProfile = {
           ...profile,
+          id: data.id || profile.id,
           name: data.tsgInfo?.name || profile.name,
           generation: data.tsgInfo?.categoryName || profile.generation,
           iconDataUrl: freshPhoto,
@@ -325,6 +346,7 @@ export function UserProfileBadge() {
       newProfileData.email || tsgInfoState?.email || profile.email || "";
 
     const updatedProfile: UserProfile = {
+      id: newProfileData.id || undefined,
       name: tempName.trim() || newProfileData.name || "",
       generation: tempGen || tsgInfoState?.categoryName || "",
       iconDataUrl: newProfileData.iconDataUrl || tsgInfoState?.photo || "",
@@ -579,6 +601,18 @@ export function UserProfileBadge() {
                       <ShieldCheck className="h-4 w-4" />
                       <span>Kelola Akun</span>
                     </button>
+                    <button
+                      type="button"
+                      disabled={isRefreshing || isVerifying}
+                      onClick={() => {
+                        setIsModalOpen(false);
+                        setIsManagePublicAccountOpen(true);
+                      }}
+                      className="flex-1 flex items-center justify-center gap-2 rounded-xl border border-blue-500/30 bg-blue-500/10 hover:bg-blue-500/20 py-3 text-sm font-semibold text-blue-300 transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed disabled:pointer-events-none mt-2.5 w-full"
+                    >
+                      <ShieldCheck className="h-4 w-4" />
+                      <span>Kelola Akun Publik</span>
+                    </button>
                   </div>
                 </div>
               ) : (
@@ -750,6 +784,15 @@ export function UserProfileBadge() {
           setTempName(profile.name);
           setIsFaceModalOpen(true);
         }}
+      />
+
+      {/* Modal Kelola Akun Publik */}
+      <ManagePublicAccountModal
+        isOpen={isManagePublicAccountOpen}
+        realAccountId={profile.id || ""}
+        realAccountName={profile.name}
+        isTsgMember={!!profile.isTsgMember}
+        onClose={() => setIsManagePublicAccountOpen(false)}
       />
 
       {/* Modal Opsi Keluar / Hapus Akun */}

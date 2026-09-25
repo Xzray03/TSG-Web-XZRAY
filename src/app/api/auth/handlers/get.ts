@@ -75,6 +75,7 @@ export async function GET(request: Request) {
 
       return NextResponse.json({
         exists: true,
+        id: acc.id,
         authMethod,
         hasPassword,
         hasFace,
