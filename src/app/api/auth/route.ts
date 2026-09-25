@@ -687,6 +687,85 @@ export async function POST(request: Request) {
       return NextResponse.json({ success: true });
     }
 
+    // ACTION: REGISTER PASSWORD
+    if (action === "register_password") {
+      if (!password) {
+        return NextResponse.json({ error: "Password wajib diisi" }, { status: 400 });
+      }
+
+      const hasMinLength = password.length >= 12;
+      const hasUpperCase = /[A-Z]/.test(password);
+      const hasLowerCase = /[a-z]/.test(password);
+      const hasNumber = /[0-9]/.test(password);
+      const hasSymbol = /[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(password);
+
+      if (!hasMinLength || !hasUpperCase || !hasLowerCase || !hasNumber || !hasSymbol) {
+        return NextResponse.json(
+          { error: "Password tidak memenuhi kriteria keamanan (Min 12 Karakter, A-Z, a-z, 0-9, Simbol)." },
+          { status: 400 }
+        );
+      }
+
+      const { data: existing, error: fetchErr } = await serverSupabase
+        .from("user_accounts")
+        .select("*")
+        .ilike("name", cleanName)
+        .limit(1);
+
+      if (fetchErr) {
+        return NextResponse.json({ error: fetchErr.message || "Gagal memeriksa data akun" }, { status: 500 });
+      }
+
+      const passwordHash = sha256(password);
+
+      if (existing && existing.length > 0) {
+        const acc = existing[0];
+        if (acc.password_hash) {
+          return NextResponse.json({ error: "Akun ini sudah memiliki password. Silakan login." }, { status: 400 });
+        }
+
+        const hasFace = Boolean(acc.face_vectors && acc.face_vectors.length > 0);
+        const newAuthMethod = hasFace ? "both" : "password";
+        const currentPrefs = acc.login_preferences || { password: true, face: hasFace, email: false };
+        currentPrefs.password = true;
+
+        const { error: updateErr } = await serverSupabase
+          .from("user_accounts")
+          .update({
+            password_hash: passwordHash,
+            auth_method: newAuthMethod,
+            login_preferences: currentPrefs,
+            is_tsg_member: body.isTsgMember || body.is_tsg_member || acc.is_tsg_member || false,
+            email: body.tsgInfo?.email || acc.email || null,
+            updated_at: nowIso,
+          })
+          .eq("id", acc.id);
+
+        if (updateErr) {
+          return NextResponse.json({ error: updateErr.message || "Gagal mendaftarkan password." }, { status: 500 });
+        }
+      } else {
+        const { error: insertErr } = await serverSupabase
+          .from("user_accounts")
+          .insert({
+            name: cleanName,
+            password_hash: passwordHash,
+            auth_method: "password",
+            is_tsg_member: body.isTsgMember || body.is_tsg_member || false,
+            email: body.tsgInfo?.email || null,
+            login_preferences: { password: true, face: false, email: false },
+            created_at: nowIso,
+            updated_at: nowIso,
+          });
+
+        if (insertErr) {
+          return NextResponse.json({ error: insertErr.message || "Gagal membuat akun baru." }, { status: 500 });
+        }
+      }
+
+      return NextResponse.json({ success: true, message: "Akun berhasil didaftarkan." });
+    }
+
     // ACTION: LOGIN WITH PASSWORD
     if (action === "login_password") {
       if (!password) {

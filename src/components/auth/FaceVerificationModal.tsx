@@ -116,20 +116,14 @@ export default function FaceVerificationModal({
       img.onload = async () => {
         try {
           const faceapi = await import("@vladmandic/face-api");
-          if (
-            !faceapi.nets.tinyFaceDetector.isLoaded ||
-            !faceapi.nets.faceLandmark68Net.isLoaded ||
-            !faceapi.nets.faceRecognitionNet.isLoaded
-          ) {
-            await loadFaceRecognitionModel();
-          }
+          await loadFaceRecognitionModel();
           const options = new faceapi.TinyFaceDetectorOptions({
             inputSize: 416,
             scoreThreshold: 0.2,
           });
           const detection = await faceapi
             .detectSingleFace(img, options)
-            .withFaceLandmarks(true)
+            .withFaceLandmarks(false)
             .withFaceDescriptor();
 
           if (detection && detection.descriptor) {
@@ -286,27 +280,7 @@ export default function FaceVerificationModal({
         let startTimeMs = performance.now();
 
         try {
-          const faceapi = await import("@vladmandic/face-api");
-          if (
-            !faceapi.nets.tinyFaceDetector.isLoaded ||
-            !faceapi.nets.faceLandmark68Net.isLoaded ||
-            !faceapi.nets.faceRecognitionNet.isLoaded
-          ) {
-            await loadFaceRecognitionModel();
-          }
-
-          const originalInfo = console.info;
-          console.info = (...args: any[]) => {
-            if (
-              args[0] &&
-              typeof args[0] === "string" &&
-              args[0].includes("XNNPACK")
-            )
-              return;
-            originalInfo(...args);
-          };
           const results = landmarker.detectForVideo(video, startTimeMs);
-          console.info = originalInfo;
 
           if (
             results &&

@@ -782,7 +782,7 @@ export default function ManageAccountModal({
                   </button>
                 )}
 
-                {activeForm !== "none" && registeredEmail && activeForm !== "change_email" && (
+                {registeredEmail && activeForm !== "change_email" && (
                   <button
                     type="button"
                     disabled={isLoadingStatus}
@@ -797,7 +797,7 @@ export default function ManageAccountModal({
                   </button>
                 )}
 
-                {activeForm !== "none" && !registeredEmail && activeForm !== "add_email" && (
+                {!registeredEmail && activeForm !== "add_email" && (
                   <button
                     type="button"
                     disabled={isLoadingStatus}
@@ -812,40 +812,6 @@ export default function ManageAccountModal({
                   </button>
                 )}
               </div>
-
-              {activeForm === "none" && registeredEmail && activeForm !== "change_email" && (
-                <div className="flex justify-center w-full">
-                  <button
-                    type="button"
-                    disabled={isLoadingStatus}
-                    onClick={() => {
-                      setActiveForm("change_email");
-                      setErrorMsg("");
-                    }}
-                    className="py-2.5 px-6 rounded-xl bg-slate-800 hover:bg-slate-700 border border-white/15 text-white/90 text-xs font-semibold flex items-center justify-center gap-1.5 transition cursor-pointer w-full sm:w-auto disabled:opacity-40 disabled:cursor-not-allowed disabled:pointer-events-none"
-                  >
-                    <Edit3 className="w-3.5 h-3.5 text-purple-400" />
-                    <span>Ganti Email</span>
-                  </button>
-                </div>
-              )}
-
-              {activeForm === "none" && !registeredEmail && activeForm !== "add_email" && (
-                <div className="flex justify-center w-full">
-                  <button
-                    type="button"
-                    disabled={isLoadingStatus}
-                    onClick={() => {
-                      setActiveForm("add_email");
-                      setErrorMsg("");
-                    }}
-                    className="py-2.5 px-6 rounded-xl bg-purple-500/20 hover:bg-purple-500/30 border border-purple-500/30 text-purple-300 text-xs font-semibold flex items-center justify-center gap-1.5 transition cursor-pointer w-full sm:w-auto disabled:opacity-40 disabled:cursor-not-allowed disabled:pointer-events-none"
-                  >
-                    <Plus className="w-3.5 h-3.5" />
-                    <span>Tambah Email</span>
-                  </button>
-                </div>
-              )}
             </div>
 
             {/* FORM: TAMBAH EMAIL */}
