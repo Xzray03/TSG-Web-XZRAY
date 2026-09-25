@@ -95,6 +95,11 @@ export function UserProfileBadge() {
   );
   const [isTsgMemberState, setIsTsgMemberState] = useState(false);
   const [tsgInfoState, setTsgInfoState] = useState<any>(null);
+  const [loginPreferencesState, setLoginPreferencesState] = useState<{
+    password?: boolean;
+    face?: boolean;
+    email?: boolean;
+  } | null>(null);
 
   // Session lock
   const [pendingLoginRequest, setPendingLoginRequest] = useState<any>(null);
@@ -254,28 +259,35 @@ export function UserProfileBadge() {
 
       setIsTsgMemberState(isTsgMemberCheckbox ? !!data.isTsgMember : false);
       setTsgInfoState(isTsgMemberCheckbox ? (data.tsgInfo || null) : null);
+      setLoginPreferencesState(data.loginPreferences || null);
 
       if (!data.exists) {
         // AKUN BELUM ADA: Tampilkan Pop-Up Pilihan Metode Autentikasi
         setAuthMode("register");
         setIsChoiceModalOpen(true);
       } else {
-        // AKUN SUDAH ADA: Buka Modal Sesuai Metode Pendaftaran
+        // AKUN SUDAH ADA: Buka Modal Sesuai Preferensi Login Akun
         setAuthMode("login");
         setStoredFaceVectors(data.faceVectors || []);
 
-        const hasPass = !!data.hasPassword;
-        const hasF = !!data.hasFace;
+        const prefs = data.loginPreferences || {
+          password: !!data.hasPassword,
+          face: !!data.hasFace,
+          email: false,
+        };
 
-        if (hasPass && hasF) {
-          // BILA MEMILIKI DUA METODE (PASSWORD & WAJAH):
+        const reqPass = !!data.hasPassword && prefs.password !== false;
+        const reqFace = !!data.hasFace && prefs.face !== false;
+
+        if (reqPass && reqFace) {
+          // BILA MEMBUTUHKAN DUA METODE (PASSWORD & WAJAH):
           // Urutan: Verifikasi Password dulu, baru Wajah!
           setIsSequentialLogin(true);
           setIsPasswordModalOpen(true);
-        } else if (hasPass) {
+        } else if (reqPass) {
           setIsSequentialLogin(false);
           setIsPasswordModalOpen(true);
-        } else if (hasF) {
+        } else if (reqFace) {
           setIsSequentialLogin(false);
           setIsFaceModalOpen(true);
         } else {
@@ -321,8 +333,15 @@ export function UserProfileBadge() {
       authMethod: newProfileData.authMethod,
     };
 
-    // JIKA DALAM MODE LOGIN DAN AKUN MEMILIKI EMAIL: Wajib Verifikasi Email (LoginVerifURLModal) SEBELUM Sesi Disimpan ke LocalStorage!
-    if (authMode === "login" && targetEmail && targetEmail.includes("@")) {
+    // JIKA DALAM MODE LOGIN DAN AKUN MEMILIKI EMAIL:
+    // Cek preferensi email: jika akun memiliki email DAN preferensi email diaktifkan, minta verifikasi email.
+    const requiresEmailVerif =
+      authMode === "login" &&
+      targetEmail &&
+      targetEmail.includes("@") &&
+      loginPreferencesState?.email === true;
+
+    if (requiresEmailVerif) {
       setPendingLoginProfile(updatedProfile);
       setIsPasswordModalOpen(false);
       setIsFaceModalOpen(false);

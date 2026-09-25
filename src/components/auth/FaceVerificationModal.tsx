@@ -55,6 +55,7 @@ export default function FaceVerificationModal({
     "Memuat model Face Landmarker & AI Recognition...",
   );
   const [errorMsg, setErrorMsg] = useState("");
+  const [retryTrigger, setRetryTrigger] = useState(0);
 
   const videoRef = useRef<HTMLVideoElement>(null);
   const landmarkerRef = useRef<FaceLandmarker | null>(null);
@@ -146,6 +147,7 @@ export default function FaceVerificationModal({
 
     setErrorMsg("");
     setStep("LOADING_MODEL");
+    setStatusMessage("Memuat model Face Landmarker & AI Recognition...");
     setLivenessTask("BLINK_1");
     livenessState.current = {
       blinkCount: 0,
@@ -213,7 +215,7 @@ export default function FaceVerificationModal({
       isMounted = false;
       stopCamera();
     };
-  }, [isOpen]);
+  }, [isOpen, retryTrigger]);
 
   const startCamera = async (prefetchedStream?: MediaStream | null) => {
     try {
@@ -554,6 +556,7 @@ export default function FaceVerificationModal({
                 stopCamera();
                 setErrorMsg("");
                 setStep("LOADING_MODEL");
+                setRetryTrigger((prev) => prev + 1);
               }}
               className="w-full py-3 bg-white/10 hover:bg-white/20 rounded-xl font-semibold flex items-center justify-center gap-2 transition"
             >
