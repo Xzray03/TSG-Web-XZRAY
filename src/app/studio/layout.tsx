@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { MouseGuard } from "@/components/layout/MouseGuard";
 import "../globals.css";
+import { StudioAuthGuard } from "./StudioAuthGuard";
 
 export const metadata: Metadata = {
   title: "Studio — The Smart Generation",
@@ -19,7 +20,7 @@ export default function StudioLayout({
     <html lang="en" suppressHydrationWarning>
       <body>
         <MouseGuard />
-        {children}
+        <StudioAuthGuard>{children}</StudioAuthGuard>
       </body>
     </html>
   );
