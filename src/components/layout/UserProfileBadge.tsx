@@ -14,6 +14,8 @@ import {
   RefreshCw,
   ShieldAlert,
   ArrowLeft,
+  Globe,
+  UserCheck,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { TeamMember } from "@/types";
@@ -104,6 +106,10 @@ export function UserProfileBadge() {
     face?: boolean;
     email?: boolean;
   } | null>(null);
+
+  // Public Account Info state
+  const [publicAccountInfo, setPublicAccountInfo] = useState<any>(null);
+  const [isLoadingPublicAccount, setIsLoadingPublicAccount] = useState(false);
 
   // Session lock
   const [pendingLoginRequest, setPendingLoginRequest] = useState<any>(null);
@@ -232,6 +238,10 @@ export function UserProfileBadge() {
           "tsg_user_profile",
           JSON.stringify(updatedProfile),
         );
+
+        if (updatedProfile.id) {
+          fetchPublicAccountInfo(updatedProfile.id);
+        }
       }
     } catch (err: any) {
       setErrorMsg("Gagal memperbarui data akun.");
@@ -239,6 +249,47 @@ export function UserProfileBadge() {
       setIsRefreshing(false);
     }
   };
+
+  const fetchPublicAccountInfo = async (realAccountId: string) => {
+    if (!realAccountId) return;
+    setIsLoadingPublicAccount(true);
+    try {
+      const res = await fetch(`/api/public-accounts?realAccountId=${realAccountId}`, {
+        headers: { "x-tsg-client-verify": "true" },
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setPublicAccountInfo(data.publicAccount || null);
+      }
+    } catch (e) {
+    } finally {
+      setIsLoadingPublicAccount(false);
+    }
+  };
+
+  useEffect(() => {
+    if (profile.id) {
+      fetchPublicAccountInfo(profile.id);
+    } else if (profile.name && isModalOpen) {
+      // try to find id if missing
+      fetch(
+        `/api/auth?action=check&name=${encodeURIComponent(profile.name.trim())}`,
+        {
+          headers: { "x-tsg-client-verify": "true" },
+        },
+      )
+        .then((res) => res.json())
+        .then((data) => {
+          if (data && data.id) {
+            const updated = { ...profile, id: data.id };
+            setProfile(updated);
+            localStorage.setItem("tsg_user_profile", JSON.stringify(updated));
+            fetchPublicAccountInfo(data.id);
+          }
+        })
+        .catch(() => {});
+    }
+  }, [profile.id, isModalOpen]);
 
   const handleStartVerification = async () => {
     if (!tempName.trim()) {
@@ -573,6 +624,93 @@ export function UserProfileBadge() {
                     </p>
                   </div>
 
+                  {isLoadingPublicAccount && (
+                    <div className="rounded-2xl bg-blue-500/5 p-4 border border-blue-500/20 space-y-2 animate-pulse">
+                      <div className="flex justify-between text-xs">
+                        <span className="text-white/60">Informasi Akun Publik</span>
+                      </div>
+                      <p className="text-xs text-white/50 leading-relaxed">
+                        Memuat data akun publik...
+                      </p>
+                    </div>
+                  )}
+
+                  {!isLoadingPublicAccount && publicAccountInfo && (
+                    <div className="rounded-2xl bg-blue-500/5 p-4 border border-blue-500/20 space-y-3">
+                      <div className="flex justify-between items-center text-xs">
+                        <span className="text-white/60 font-medium">Informasi Akun Publik</span>
+                        <span className="text-blue-300 font-medium flex items-center gap-1">
+                          <Globe className="w-3.5 h-3.5" /> @{publicAccountInfo.nickname}
+                        </span>
+                      </div>
+
+                      {/* Nama & Umur */}
+                      {publicAccountInfo.name && (
+                        <div className="flex justify-between text-xs pt-1">
+                          <span className="text-white/50">Nama Publik</span>
+                          <span className="text-white/90 font-semibold">
+                            {publicAccountInfo.name}
+                            {publicAccountInfo.age ? ` (${publicAccountInfo.age} thn)` : ""}
+                          </span>
+                        </div>
+                      )}
+
+                      {/* Bio */}
+                      {publicAccountInfo.bio && (
+                        <p className="text-xs text-white/70 leading-relaxed bg-white/5 p-3 rounded-xl border border-white/10 break-words">
+                          “{publicAccountInfo.bio}”
+                        </p>
+                      )}
+
+                      {/* Badge Anggota TSG */}
+                      {publicAccountInfo.show_tsg_member && (
+                        <div className="flex items-center gap-1.5 text-[10px] px-2 py-1 rounded-full bg-blue-500/10 border border-blue-400/30 text-blue-300 font-bold w-fit">
+                          <UserCheck className="h-3 w-3" />
+                          <span>ANGGOTA TSG</span>
+                        </div>
+                      )}
+
+                      {/* Website */}
+                      {publicAccountInfo.website && (
+                        <div className="flex justify-between items-center text-xs gap-2">
+                          <span className="text-white/50 shrink-0 flex items-center gap-1">
+                            <Globe className="w-3 h-3" /> Website
+                          </span>
+                          <a
+                            href={publicAccountInfo.website.startsWith("http") ? publicAccountInfo.website : `https://${publicAccountInfo.website}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-blue-300 hover:text-blue-200 font-medium truncate max-w-[60%] text-right hover:underline"
+                          >
+                            {publicAccountInfo.website.replace(/^https?:\/\//, "")}
+                          </a>
+                        </div>
+                      )}
+
+                      {/* Social Media (Link saja) */}
+                      {publicAccountInfo.social_media && Object.entries(publicAccountInfo.social_media as Record<string, string>).some(([_, v]) => v && String(v).trim()) && (
+                        <div className="space-y-2 pt-1 border-t border-white/10">
+                          <p className="text-[10px] uppercase tracking-widest text-white/40 font-bold pt-2">Tautan Media Sosial</p>
+                          {Object.entries(publicAccountInfo.social_media as Record<string, string>)
+                            .filter(([_, v]) => v && String(v).trim())
+                            .map(([key, val]) => (
+                              <div key={key} className="flex justify-between items-center text-xs gap-2">
+                                <span className="text-white/50 capitalize shrink-0">{key}</span>
+                                <a
+                                  href={String(val).startsWith("http") ? String(val) : `https://${String(val)}`}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="text-blue-300 hover:text-blue-200 font-medium truncate max-w-[60%] text-right hover:underline"
+                                >
+                                  {String(val).replace(/^https?:\/\//, "").replace(/^www\./, "")}
+                                </a>
+                              </div>
+                            ))}
+                        </div>
+                      )}
+                    </div>
+                  )}
+
                   <div className="flex items-center gap-2.5">
                     <button
                       type="button"
@@ -580,7 +718,7 @@ export function UserProfileBadge() {
                       disabled={isRefreshing || isVerifying}
                       title="Refresh Data Akun"
                       aria-label="Refresh Data Akun"
-                      className="flex h-11 w-11 items-center justify-center rounded-xl border border-blue-500/30 bg-blue-500/10 text-blue-300 transition-colors hover:bg-blue-500/20 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed disabled:pointer-events-none shrink-0"
+                      className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-blue-500/30 bg-blue-500/10 text-blue-300 transition-colors hover:bg-blue-500/20 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed disabled:pointer-events-none"
                     >
                       <RefreshCw
                         className={cn(
@@ -596,7 +734,7 @@ export function UserProfileBadge() {
                         setIsModalOpen(false);
                         setIsManageAccountOpen(true);
                       }}
-                      className="flex-1 flex items-center justify-center gap-2 rounded-xl border border-emerald-500/30 bg-emerald-500/10 hover:bg-emerald-500/20 py-3 text-sm font-semibold text-emerald-300 transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed disabled:pointer-events-none"
+                      className="flex h-11 flex-1 items-center justify-center gap-2 rounded-xl border border-emerald-500/30 bg-emerald-500/10 hover:bg-emerald-500/20 text-sm font-semibold text-emerald-300 transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed disabled:pointer-events-none"
                     >
                       <ShieldCheck className="h-4 w-4" />
                       <span>Kelola Akun</span>
@@ -608,7 +746,7 @@ export function UserProfileBadge() {
                         setIsModalOpen(false);
                         setIsManagePublicAccountOpen(true);
                       }}
-                      className="flex-1 flex items-center justify-center gap-2 rounded-xl border border-blue-500/30 bg-blue-500/10 hover:bg-blue-500/20 py-3 text-sm font-semibold text-blue-300 transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed disabled:pointer-events-none mt-2.5 w-full"
+                      className="flex h-11 flex-1 items-center justify-center gap-2 rounded-xl border border-blue-500/30 bg-blue-500/10 hover:bg-blue-500/20 text-sm font-semibold text-blue-300 transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed disabled:pointer-events-none"
                     >
                       <ShieldCheck className="h-4 w-4" />
                       <span>Kelola Akun Publik</span>
@@ -792,7 +930,12 @@ export function UserProfileBadge() {
         realAccountId={profile.id || ""}
         realAccountName={profile.name}
         isTsgMember={!!profile.isTsgMember}
-        onClose={() => setIsManagePublicAccountOpen(false)}
+        onClose={() => {
+          setIsManagePublicAccountOpen(false);
+          if (profile.id) {
+            fetchPublicAccountInfo(profile.id);
+          }
+        }}
       />
 
       {/* Modal Opsi Keluar / Hapus Akun */}
