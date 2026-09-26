@@ -224,12 +224,12 @@ export function UserProfileBadge() {
       const data = await parseJsonResponse(res);
 
       if (res.ok) {
-        const freshPhoto = data.tsgInfo?.photo || profile.iconDataUrl;
+        const freshPhoto = data.photo || data.tsgInfo?.photo || profile.iconDataUrl;
         const updatedProfile: UserProfile = {
           ...profile,
           id: data.id || profile.id,
           name: data.tsgInfo?.name || profile.name,
-          generation: data.tsgInfo?.categoryName || profile.generation,
+          generation: data.generation || data.tsgInfo?.categoryName || profile.generation,
           iconDataUrl: freshPhoto,
           email: data.tsgInfo?.email || profile.email,
           isTsgMember: !!data.isTsgMember,
@@ -273,8 +273,8 @@ export function UserProfileBadge() {
   useEffect(() => {
     if (profile.id) {
       fetchPublicAccountInfo(profile.id);
-    } else if (profile.name && isModalOpen) {
-      // try to find id if missing
+    } else if (profile.name) {
+      // try to find id & sync Supabase data if missing
       fetch(
         `/api/auth?action=check&name=${encodeURIComponent(profile.name.trim())}`,
         {
@@ -283,16 +283,23 @@ export function UserProfileBadge() {
       )
         .then((res) => res.json())
         .then((data) => {
-          if (data && data.id) {
-            const updated = { ...profile, id: data.id };
+          if (data && (data.id || data.photo || data.generation)) {
+            const updated = {
+              ...profile,
+              id: data.id || profile.id,
+              generation: data.generation || profile.generation,
+              iconDataUrl: data.photo || profile.iconDataUrl,
+            };
             setProfile(updated);
             localStorage.setItem("tsg_user_profile", JSON.stringify(updated));
-            fetchPublicAccountInfo(data.id);
+            if (data.id) {
+              fetchPublicAccountInfo(data.id);
+            }
           }
         })
         .catch(() => {});
     }
-  }, [profile.id, isModalOpen]);
+  }, [profile.id, profile.name]);
 
   const handleStartVerification = async () => {
     if (!tempName.trim()) {
@@ -402,8 +409,8 @@ export function UserProfileBadge() {
     const updatedProfile: UserProfile = {
       id: newProfileData.id || undefined,
       name: tempName.trim() || newProfileData.name || "",
-      generation: tempGen || tsgInfoState?.categoryName || "",
-      iconDataUrl: newProfileData.iconDataUrl || tsgInfoState?.photo || "",
+      generation: tempGen || tsgInfoState?.categoryName || newProfileData.generation || profile.generation || "",
+      iconDataUrl: newProfileData.iconDataUrl || tsgInfoState?.photo || newProfileData.photo || profile.iconDataUrl || "",
       email: targetEmail,
       isTsgMember: isTsgMemberState,
       authMethod: newProfileData.authMethod,
@@ -431,6 +438,22 @@ export function UserProfileBadge() {
   const finalizeLogin = (finalProfile: UserProfile) => {
     setProfile(finalProfile);
     localStorage.setItem("tsg_user_profile", JSON.stringify(finalProfile));
+
+    if (finalProfile.name) {
+      fetch("/api/auth", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-tsg-client-verify": "true",
+        },
+        body: JSON.stringify({
+          action: "update_profile",
+          name: finalProfile.name,
+          generation: finalProfile.generation,
+          photo: finalProfile.iconDataUrl,
+        }),
+      }).catch(() => {});
+    }
 
     setPendingLoginProfile(null);
     setIsLoginOtpModalOpen(false);
@@ -565,11 +588,7 @@ export function UserProfileBadge() {
               <div className="flex items-center gap-3 mb-6">
                 <div
                   onClick={() => setIsLogoModalOpen(true)}
-                  title={
-                    profile.isTsgMember
-                      ? "Klik untuk melihat foto profil"
-                      : "Klik untuk lihat/ubah foto profil"
-                  }
+                  title="Klik untuk lihat/ubah foto profil"
                   className="relative h-14 w-14 overflow-hidden rounded-full border border-white/20 bg-slate-800 flex items-center justify-center shrink-0 transition-transform hover:scale-105 active:scale-95 cursor-pointer ring-2 ring-emerald-500/30"
                 >
                   {profile.iconDataUrl ? (
@@ -583,15 +602,30 @@ export function UserProfileBadge() {
                     <FaUser className="h-5 w-5 text-white/70" />
                   )}
                 </div>
-                <div>
+                <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2">
-                    <h2 className="text-lg font-bold text-white">
+                    <h2 className="text-lg font-bold text-white truncate">
                       {profile.name || "Tamu"}
                     </h2>
                     {profile.isTsgMember && (
-                      <span className="text-[10px] px-2 py-0.5 rounded-full bg-blue-500/20 border border-blue-400/30 text-blue-300 font-bold">
+                      <span className="text-[10px] px-2 py-0.5 rounded-full bg-blue-500/20 border border-blue-400/30 text-blue-300 font-bold shrink-0">
                         ANGGOTA TSG
                       </span>
+                    )}
+                    {hasData && !isEditing && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setIsEditing(true);
+                          setTempName(profile.name);
+                          setTempGen(profile.generation);
+                          setIsTsgMemberCheckbox(!!profile.isTsgMember);
+                        }}
+                        title="Ubah Profil Akun"
+                        className="text-white/40 hover:text-emerald-400 transition-colors cursor-pointer p-1 rounded-lg hover:bg-white/5"
+                      >
+                        <Edit3 className="w-3.5 h-3.5" />
+                      </button>
                     )}
                   </div>
                   <p className="text-xs text-white/60 font-medium">
@@ -912,6 +946,8 @@ export function UserProfileBadge() {
       <ManageAccountModal
         isOpen={isManageAccountOpen}
         userName={profile.name}
+        isTsgMember={!!profile.isTsgMember}
+        generation={profile.generation}
         onClose={() => setIsManageAccountOpen(false)}
         onSwitchAccount={() => {
           setIsManageAccountOpen(false);
@@ -931,6 +967,14 @@ export function UserProfileBadge() {
           setTempName(profile.name);
           setIsFaceModalOpen(true);
         }}
+        onChangeCreatorFaceTrigger={() => {
+          setIsManageAccountOpen(false);
+          setAuthMode("register");
+          setTempName(profile.name);
+          setTempGen(profile.generation);
+          setIsTsgMemberState(true);
+          setIsFaceModalOpen(true);
+        }}
       />
 
       {/* Modal Kelola Akun Publik */}
@@ -939,6 +983,7 @@ export function UserProfileBadge() {
         realAccountId={profile.id || ""}
         realAccountName={profile.name}
         isTsgMember={!!profile.isTsgMember}
+        defaultAvatarUrl={profile.iconDataUrl}
         onClose={() => {
           setIsManagePublicAccountOpen(false);
           if (profile.id) {
@@ -951,6 +996,7 @@ export function UserProfileBadge() {
       <PublicProfilePreviewModal
         isOpen={isPreviewPublicProfileOpen}
         publicAccount={publicAccountInfo}
+        defaultAvatarUrl={profile.iconDataUrl}
         onClose={() => setIsPreviewPublicProfileOpen(false)}
       />
 
@@ -1181,6 +1227,27 @@ export function UserProfileBadge() {
           const updated = { ...profile, iconDataUrl: newPhotoUrl };
           setProfile(updated);
           localStorage.setItem("tsg_user_profile", JSON.stringify(updated));
+          if (profile.name) {
+            fetch("/api/auth", {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+                "x-tsg-client-verify": "true",
+              },
+              body: JSON.stringify({
+                action: "update_profile",
+                name: profile.name,
+                photo: newPhotoUrl,
+              }),
+            })
+              .then((res) => res.json())
+              .then(() => {
+                if (profile.id) {
+                  fetchPublicAccountInfo(profile.id);
+                }
+              })
+              .catch(() => {});
+          }
         }}
       />
 

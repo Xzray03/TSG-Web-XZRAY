@@ -49,7 +49,18 @@ export async function GET(request: Request) {
       }
 
       if (data && data.length > 0) {
-        return NextResponse.json({ publicAccount: data[0] });
+        const pubAcc = data[0];
+        if (!pubAcc.avatar_url) {
+          const { data: realAcc } = await serverSupabase
+            .from("user_accounts")
+            .select("photo")
+            .eq("id", realAccountId)
+            .limit(1);
+          if (realAcc && realAcc[0]?.photo) {
+            pubAcc.avatar_url = realAcc[0].photo;
+          }
+        }
+        return NextResponse.json({ publicAccount: pubAcc });
       }
 
       return NextResponse.json({ publicAccount: null });
@@ -85,7 +96,7 @@ export async function POST(request: Request) {
     // 1. Verify real account exists and get its tsg status
     const { data: realAccData, error: realAccErr } = await serverSupabase
       .from("user_accounts")
-      .select("id, is_tsg_member")
+      .select("id, is_tsg_member, photo")
       .eq("id", realAccountId)
       .limit(1);
 
@@ -95,6 +106,7 @@ export async function POST(request: Request) {
 
     const realAcc = realAccData[0];
     const isRealTsgMember = !!realAcc.is_tsg_member;
+    const finalAvatarUrl = (avatarUrl && typeof avatarUrl === "string" && avatarUrl.trim()) ? avatarUrl.trim() : (realAcc.photo || null);
 
     // Validate showTsgMember permission
     const finalShowTsg = showTsgMember && isRealTsgMember;
@@ -130,7 +142,7 @@ export async function POST(request: Request) {
           name: name.trim(),
           age: age ? parseInt(age, 10) : null,
           bio: bio ? bio.trim() : null,
-          avatar_url: avatarUrl ? avatarUrl.trim() : null,
+          avatar_url: finalAvatarUrl,
           show_tsg_member: finalShowTsg,
           social_media: socialMedia || {},
           website: website ? website.trim() : null,
@@ -151,7 +163,7 @@ export async function POST(request: Request) {
           name: name.trim(),
           age: age ? parseInt(age, 10) : null,
           bio: bio ? bio.trim() : null,
-          avatar_url: avatarUrl ? avatarUrl.trim() : null,
+          avatar_url: finalAvatarUrl,
           show_tsg_member: finalShowTsg,
           social_media: socialMedia || {},
           website: website ? website.trim() : null,

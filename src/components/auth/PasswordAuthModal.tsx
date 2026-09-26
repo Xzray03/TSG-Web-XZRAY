@@ -112,13 +112,24 @@ export default function PasswordAuthModal({
       }
 
       // Success
+      const existingSavedProfile = localStorage.getItem("tsg_user_profile");
+      let existingCustomPhoto = "";
+      if (existingSavedProfile) {
+        try {
+          const parsed = JSON.parse(existingSavedProfile);
+          if (parsed.iconDataUrl) {
+            existingCustomPhoto = parsed.iconDataUrl;
+          }
+        } catch (e) {}
+      }
+
       const profile = {
         name: userName,
         isTsgMember: isTsgMember,
         generation: tsgInfo?.categoryName || "",
         email: tsgInfo?.email || "",
         authMethod: "password",
-        iconDataUrl: tsgInfo?.photo || "",
+        iconDataUrl: existingCustomPhoto || tsgInfo?.photo || "",
       };
 
       localStorage.setItem("tsg_user_profile", JSON.stringify(profile));

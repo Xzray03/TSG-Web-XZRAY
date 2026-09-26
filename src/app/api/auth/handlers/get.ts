@@ -68,10 +68,16 @@ export async function GET(request: Request) {
       const hasPassword = Boolean(acc.password_hash);
       const hasFace = Boolean(acc.face_vectors && acc.face_vectors.length > 0);
       const email = acc.email || tsgInfo?.email || "";
+      const generation = acc.generation || tsgInfo?.categoryName || "";
+      const photo = acc.photo || tsgInfo?.photo || "";
       let authMethod = acc.auth_method;
       if (hasPassword && hasFace) {
         authMethod = "both";
       }
+
+      const mergedTsgInfo = tsgInfo
+        ? { ...tsgInfo, categoryName: generation || tsgInfo.categoryName, photo: photo || tsgInfo.photo }
+        : { name: acc.name, categoryName: generation, photo: photo };
 
       return NextResponse.json({
         exists: true,
@@ -80,8 +86,10 @@ export async function GET(request: Request) {
         hasPassword,
         hasFace,
         email,
+        generation,
+        photo,
         isTsgMember: acc.is_tsg_member || isTsgMember,
-        tsgInfo: tsgInfo || { name: acc.name },
+        tsgInfo: mergedTsgInfo,
         faceVectors: acc.face_vectors || null,
         loginPreferences: acc.login_preferences || {
           password: hasPassword,
@@ -96,6 +104,8 @@ export async function GET(request: Request) {
       authMethod: null,
       isTsgMember,
       tsgInfo,
+      generation: tsgInfo?.categoryName || "",
+      photo: tsgInfo?.photo || "",
       faceVectors: null,
       loginPreferences: { password: true, face: true, email: false },
     });

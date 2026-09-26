@@ -106,10 +106,16 @@ export async function GET(request: Request) {
       const hasPassword = Boolean(acc.password_hash);
       const hasFace = Boolean(acc.face_vectors && acc.face_vectors.length > 0);
       const email = acc.email || tsgInfo?.email || "";
+      const generation = acc.generation || tsgInfo?.categoryName || "";
+      const photo = acc.photo || tsgInfo?.photo || "";
       let authMethod = acc.auth_method;
       if (hasPassword && hasFace) {
         authMethod = "both";
       }
+
+      const mergedTsgInfo = tsgInfo
+        ? { ...tsgInfo, categoryName: generation || tsgInfo.categoryName, photo: photo || tsgInfo.photo }
+        : { name: acc.name, categoryName: generation, photo: photo };
 
       return NextResponse.json({
         exists: true,
@@ -118,8 +124,10 @@ export async function GET(request: Request) {
         hasPassword,
         hasFace,
         email,
+        generation,
+        photo,
         isTsgMember: acc.is_tsg_member || isTsgMember,
-        tsgInfo: tsgInfo || { name: acc.name },
+        tsgInfo: mergedTsgInfo,
         faceVectors: acc.face_vectors || null,
         loginPreferences: acc.login_preferences || {
           password: hasPassword,
@@ -134,6 +142,8 @@ export async function GET(request: Request) {
       authMethod: null,
       isTsgMember,
       tsgInfo,
+      generation: tsgInfo?.categoryName || "",
+      photo: tsgInfo?.photo || "",
       faceVectors: null,
       loginPreferences: { password: true, face: true, email: false },
     });
@@ -203,6 +213,7 @@ export async function POST(request: Request) {
 
       if (existing && existing.length > 0) {
         const acc = existing[0];
+        // ponytail: Sanity categoryName/photo override only if column empty; full sync controlled by update_profile.
         const { error: updateErr } = await serverSupabase
           .from("user_accounts")
           .update({
@@ -210,6 +221,9 @@ export async function POST(request: Request) {
             face_snapshots: snapshotUrl ? [snapshotUrl, ...(acc.face_snapshots || [])].slice(0, 3) : acc.face_snapshots,
             auth_method: acc.password_hash ? "both" : "face",
             is_tsg_member: body.is_tsg_member || acc.is_tsg_member || false,
+            generation: acc.generation || body.tsgInfo?.categoryName || body.generation || acc.generation,
+            photo: acc.photo || body.tsgInfo?.photo || body.photo || acc.photo,
+            email: acc.email || body.tsgInfo?.email || acc.email,
             updated_at: nowIso,
           })
           .eq("id", acc.id);
@@ -227,6 +241,8 @@ export async function POST(request: Request) {
             auth_method: "face",
             is_tsg_member: body.is_tsg_member || false,
             email: body.tsgInfo?.email || null,
+            generation: body.tsgInfo?.categoryName || body.generation || null,
+            photo: body.tsgInfo?.photo || body.photo || null,
             login_preferences: { password: false, face: true, email: false },
             created_at: nowIso,
             updated_at: nowIso,
@@ -238,6 +254,56 @@ export async function POST(request: Request) {
       }
 
       return NextResponse.json({ success: true, message: "Pendaftaran wajah berhasil disimpan." });
+    }
+
+    // ACTION: UPDATE PROFILE (Real user profile: name, generation, photo in Supabase)
+    if (action === "update_profile") {
+      const { newName, generation, photo } = body;
+
+      const { data: existing, error: fetchErr } = await serverSupabase
+        .from("user_accounts")
+        .select("*")
+        .ilike("name", cleanName)
+        .limit(1);
+
+      if (fetchErr || !existing || existing.length === 0) {
+        return NextResponse.json({ error: "Akun tidak ditemukan di database Supabase" }, { status: 404 });
+      }
+
+      const acc = existing[0];
+      const updates: any = {
+        updated_at: nowIso,
+      };
+
+      if (newName && typeof newName === "string" && newName.trim()) {
+        updates.name = newName.trim();
+      }
+      if (generation !== undefined) {
+        updates.generation = typeof generation === "string" ? generation.trim() : null;
+      }
+      if (photo !== undefined) {
+        updates.photo = typeof photo === "string" ? photo.trim() : null;
+      }
+
+      const { error: updateErr } = await serverSupabase
+        .from("user_accounts")
+        .update(updates)
+        .eq("id", acc.id);
+
+      if (updateErr) {
+        return NextResponse.json({ error: updateErr.message || "Gagal memperbarui profil di Supabase." }, { status: 500 });
+      }
+
+      return NextResponse.json({
+        success: true,
+        message: "Profil berhasil diperbarui di Supabase.",
+        profile: {
+          id: acc.id,
+          name: updates.name || acc.name,
+          generation: updates.generation !== undefined ? updates.generation : acc.generation,
+          photo: updates.photo !== undefined ? updates.photo : acc.photo,
+        },
+      });
     }
 
     // ACTION: UPDATE LOGIN PREFERENCES (TERSIMPAN DI SUPABASE)
@@ -738,6 +804,8 @@ export async function POST(request: Request) {
             login_preferences: currentPrefs,
             is_tsg_member: body.isTsgMember || body.is_tsg_member || acc.is_tsg_member || false,
             email: body.tsgInfo?.email || acc.email || null,
+            generation: acc.generation || body.tsgInfo?.categoryName || body.generation || acc.generation,
+            photo: acc.photo || body.tsgInfo?.photo || body.photo || acc.photo,
             updated_at: nowIso,
           })
           .eq("id", acc.id);
@@ -754,6 +822,8 @@ export async function POST(request: Request) {
             auth_method: "password",
             is_tsg_member: body.isTsgMember || body.is_tsg_member || false,
             email: body.tsgInfo?.email || null,
+            generation: body.tsgInfo?.categoryName || body.generation || null,
+            photo: body.tsgInfo?.photo || body.photo || null,
             login_preferences: { password: true, face: false, email: false },
             created_at: nowIso,
             updated_at: nowIso,

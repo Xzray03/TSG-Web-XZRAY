@@ -15,6 +15,7 @@ import { useScrollLock } from "@/hooks/useScrollLock";
 interface PublicProfilePreviewModalProps {
   isOpen: boolean;
   publicAccount: any;
+  defaultAvatarUrl?: string;
   onClose: () => void;
 }
 
@@ -32,12 +33,15 @@ const SOCIAL_ICONS: Record<string, { icon: any; color: string; label: string }> 
 export function PublicProfilePreviewModal({
   isOpen,
   publicAccount,
+  defaultAvatarUrl = "",
   onClose,
 }: PublicProfilePreviewModalProps) {
   useScrollLock(isOpen);
   const [isPhotoModalOpen, setIsPhotoModalOpen] = useState(false);
 
   if (!isOpen || !publicAccount) return null;
+
+  const displayAvatar = publicAccount.avatar_url || defaultAvatarUrl || "";
 
   const validSocials = publicAccount.social_media
     ? Object.entries(publicAccount.social_media as Record<string, string>).filter(
@@ -62,18 +66,18 @@ export function PublicProfilePreviewModal({
           <div className="flex flex-col items-center text-center mt-2 mb-6">
             <div
               onClick={() => {
-                if (publicAccount.avatar_url) {
+                if (displayAvatar) {
                   setIsPhotoModalOpen(true);
                 }
               }}
-              title={publicAccount.avatar_url ? "Klik untuk melihat foto profil penuh" : undefined}
+              title={displayAvatar ? "Klik untuk melihat foto profil penuh" : undefined}
               className={`relative h-24 w-24 overflow-hidden rounded-full border-2 border-blue-500/40 bg-slate-800 flex items-center justify-center mb-4 ring-4 ring-blue-500/10 shadow-xl ${
-                publicAccount.avatar_url ? "cursor-pointer hover:scale-105 active:scale-95 transition-transform" : ""
+                displayAvatar ? "cursor-pointer hover:scale-105 active:scale-95 transition-transform" : ""
               }`}
             >
-              {publicAccount.avatar_url ? (
+              {displayAvatar ? (
                 <img
-                  src={publicAccount.avatar_url}
+                  src={displayAvatar}
                   alt={publicAccount.name || publicAccount.nickname}
                   className="h-full w-full object-cover object-top aspect-square"
                   crossOrigin="anonymous"
@@ -174,10 +178,10 @@ export function PublicProfilePreviewModal({
         </div>
       </div>
 
-      {isPhotoModalOpen && publicAccount.avatar_url && (
+      {isPhotoModalOpen && displayAvatar && (
         <LogoModal
           isOpen={isPhotoModalOpen}
-          logoUrl={publicAccount.avatar_url}
+          logoUrl={displayAvatar}
           alt={publicAccount.name || publicAccount.nickname}
           isTsgMember={publicAccount.show_tsg_member}
           onClose={() => setIsPhotoModalOpen(false)}

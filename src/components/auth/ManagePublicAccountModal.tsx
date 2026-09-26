@@ -20,6 +20,7 @@ interface ManagePublicAccountModalProps {
   realAccountId: string;
   realAccountName: string;
   isTsgMember: boolean;
+  defaultAvatarUrl?: string;
   onClose: () => void;
 }
 
@@ -28,6 +29,7 @@ export default function ManagePublicAccountModal({
   realAccountId,
   realAccountName,
   isTsgMember,
+  defaultAvatarUrl = "",
   onClose,
 }: ManagePublicAccountModalProps) {
   useScrollLock(isOpen);
@@ -100,7 +102,7 @@ export default function ManagePublicAccountModal({
     setNickname("");
     setAge("");
     setBio("");
-    setAvatarUrl("");
+    setAvatarUrl(defaultAvatarUrl || "");
     setShowTsgMember(false);
     setWebsite("");
     setResolvedId(realAccountId || "");
@@ -134,7 +136,7 @@ export default function ManagePublicAccountModal({
         setName(acc.name || realAccountName || "");
         setAge(acc.age ? acc.age.toString() : "");
         setBio(acc.bio || "");
-        setAvatarUrl(acc.avatar_url || "");
+        setAvatarUrl(acc.avatar_url || defaultAvatarUrl || "");
         setShowTsgMember(!!acc.show_tsg_member);
         setWebsite(acc.website || "");
         if (acc.social_media && typeof acc.social_media === "object") {

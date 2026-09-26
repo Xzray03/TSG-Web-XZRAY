@@ -28,11 +28,14 @@ import { supabase } from "@/lib/supabase";
 interface ManageAccountModalProps {
   isOpen: boolean;
   userName: string;
+  isTsgMember?: boolean;
+  generation?: string;
   onClose: () => void;
   onSwitchAccount: () => void;
   onLogout: () => void;
   onRefreshProfile: () => void;
   onAddFaceTrigger: () => void;
+  onChangeCreatorFaceTrigger?: () => void;
 }
 
 function maskEmail(email: string): string {
@@ -59,11 +62,14 @@ async function parseJsonResponse(res: Response) {
 export default function ManageAccountModal({
   isOpen,
   userName,
+  isTsgMember = false,
+  generation = "",
   onClose,
   onSwitchAccount,
   onLogout,
   onRefreshProfile,
   onAddFaceTrigger,
+  onChangeCreatorFaceTrigger,
 }: ManageAccountModalProps) {
   const [hasPassword, setHasPassword] = useState(false);
   const [hasFace, setHasFace] = useState(false);
@@ -779,6 +785,23 @@ export default function ManageAccountModal({
                   >
                     <Camera className="w-3.5 h-3.5" />
                     <span>Tambah Wajah</span>
+                  </button>
+                )}
+
+                {/* KHUSUS ANGGOTA TSG GENERASI CREATOR: TOMBOL UBAH WAJAH AI (PATOKAN UTAMA) */}
+                {isTsgMember && generation?.toLowerCase() === "creator" && (
+                  <button
+                    type="button"
+                    disabled={isLoadingStatus}
+                    onClick={() => {
+                      onClose();
+                      onChangeCreatorFaceTrigger?.();
+                    }}
+                    className="py-2.5 px-3 rounded-xl bg-amber-500/20 hover:bg-amber-500/30 border border-amber-500/40 text-amber-300 text-xs font-semibold flex items-center justify-center gap-1.5 transition cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed disabled:pointer-events-none"
+                    title="Perbarui patokan pendaftaran utama wajah AI"
+                  >
+                    <Camera className="w-3.5 h-3.5 text-amber-400" />
+                    <span>Ubah Wajah AI</span>
                   </button>
                 )}
 

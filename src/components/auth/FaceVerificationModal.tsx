@@ -481,7 +481,7 @@ export default function FaceVerificationModal({
                     if (existingSavedProfile) {
                       try {
                         const parsed = JSON.parse(existingSavedProfile);
-                        if (parsed.iconDataUrl && !isTsgMember) {
+                        if (parsed.iconDataUrl) {
                           existingCustomPhoto = parsed.iconDataUrl;
                         }
                       } catch (e) {}
@@ -493,7 +493,7 @@ export default function FaceVerificationModal({
                       generation: tsgInfo?.categoryName || "",
                       email: tsgInfo?.email || "",
                       authMethod: "face",
-                      iconDataUrl: isTsgMember ? (tsgInfo?.photo || "") : existingCustomPhoto,
+                      iconDataUrl: existingCustomPhoto || tsgInfo?.photo || "",
                     };
 
                     localStorage.setItem("tsg_user_profile", JSON.stringify(profile));

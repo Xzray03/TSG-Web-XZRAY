@@ -96,7 +96,7 @@ export function LogoModal({
             {altText}
           </p>
 
-          {!isTsgMember && onUpdatePhoto && (
+          {onUpdatePhoto && (
             <div className="mt-4 flex flex-col items-center gap-2">
               <input
                 type="file"
@@ -114,7 +114,7 @@ export function LogoModal({
                 <span>{logoUrl ? "Ubah Foto Profil" : "Unggah Foto Profil"}</span>
               </button>
               <p className="text-[11px] text-white/50">
-                Pengguna publik dapat mengunggah & mengedit posisi foto profil.
+                Anda dapat mengunggah & mengedit posisi foto profil akun Anda.
               </p>
             </div>
           )}
