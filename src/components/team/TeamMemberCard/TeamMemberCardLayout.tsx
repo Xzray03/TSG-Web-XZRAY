@@ -3,6 +3,7 @@ import { badgeConfig } from "@/lib/badge-config";
 import { cn } from "@/lib/utils";
 import type { TeamMember } from "@/types";
 import { TeamMemberCardBadge } from "./TeamMemberCardBadge";
+import { TeamMemberCardPublicButton } from "./TeamMemberCardPublicButton";
 
 interface TeamMemberCardLayoutProps {
   member: TeamMember;
@@ -43,6 +44,7 @@ export function TeamMemberCardLayout({
         </div>
       )}
 
+      <TeamMemberCardPublicButton member={member} />
       <TeamMemberCardBadge badgeKey={badgeKey} />
 
       <div

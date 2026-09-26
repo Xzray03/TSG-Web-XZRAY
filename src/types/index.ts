@@ -100,6 +100,21 @@ export interface TeamAchievement {
 
 export type TeamBadge = "founder" | "developer" | "mentor" | "admin";
 
+export interface PublicAccountData {
+  id?: string;
+  real_account_id?: string;
+  nickname?: string;
+  name?: string;
+  age?: number | null;
+  bio?: string | null;
+  avatar_url?: string | null;
+  show_tsg_member?: boolean;
+  social_media?: Record<string, string>;
+  website?: string | null;
+  created_at?: string;
+  updated_at?: string;
+}
+
 export interface TeamMember {
   id: string;
   name: string;
@@ -114,6 +129,8 @@ export interface TeamMember {
   badge?: TeamBadge;
   achievements: TeamAchievement[];
   featured?: boolean;
+  isSupabaseConnected?: boolean;
+  publicAccount?: PublicAccountData | null;
 }
 
 export interface FAQItem {
