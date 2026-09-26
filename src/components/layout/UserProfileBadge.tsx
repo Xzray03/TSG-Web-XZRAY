@@ -27,6 +27,7 @@ import DeleteAccountModal from "@/components/auth/DeleteAccountModal";
 import DeviceApprovalModal from "@/components/auth/DeviceApprovalModal";
 import ManageAccountModal from "@/components/auth/ManageAccountModal";
 import ManagePublicAccountModal from "@/components/auth/ManagePublicAccountModal";
+import { PublicProfilePreviewModal } from "@/components/auth/PublicProfilePreviewModal";
 import { LoginVerifURLModal } from "@/components/auth/LoginVerifURLModal";
 import { LogoModal } from "@/components/layout/LogoModal";
 import { supabase } from "@/lib/supabase";
@@ -110,6 +111,7 @@ export function UserProfileBadge() {
   // Public Account Info state
   const [publicAccountInfo, setPublicAccountInfo] = useState<any>(null);
   const [isLoadingPublicAccount, setIsLoadingPublicAccount] = useState(false);
+  const [isPreviewPublicProfileOpen, setIsPreviewPublicProfileOpen] = useState(false);
 
   // Session lock
   const [pendingLoginRequest, setPendingLoginRequest] = useState<any>(null);
@@ -123,6 +125,7 @@ export function UserProfileBadge() {
     isDeleteAccountOpen ||
     isManageAccountOpen ||
     isManagePublicAccountOpen ||
+    isPreviewPublicProfileOpen ||
     isTsgMemberBlockModalOpen ||
     isLogoModalOpen ||
     isLoginOtpModalOpen ||
@@ -639,9 +642,15 @@ export function UserProfileBadge() {
                     <div className="rounded-2xl bg-blue-500/5 p-4 border border-blue-500/20 space-y-3">
                       <div className="flex justify-between items-center text-xs">
                         <span className="text-white/60 font-medium">Informasi Akun Publik</span>
-                        <span className="text-blue-300 font-medium flex items-center gap-1">
-                          <Globe className="w-3.5 h-3.5" /> @{publicAccountInfo.nickname}
-                        </span>
+                        <button
+                          type="button"
+                          onClick={() => setIsPreviewPublicProfileOpen(true)}
+                          className="text-blue-400 hover:text-blue-300 font-semibold flex items-center gap-1.5 transition-colors cursor-pointer bg-blue-500/10 hover:bg-blue-500/20 px-2.5 py-1 rounded-lg border border-blue-400/30"
+                        >
+                          <Globe className="w-3.5 h-3.5" />
+                          <span>@{publicAccountInfo.nickname}</span>
+                          <span className="inline-flex items-center justify-center h-5 w-5 rounded-full bg-blue-500/20 text-[10px] ml-0.5">👁</span>
+                        </button>
                       </div>
 
                       {/* Nama & Umur */}
@@ -936,6 +945,13 @@ export function UserProfileBadge() {
             fetchPublicAccountInfo(profile.id);
           }
         }}
+      />
+
+      {/* Modal Preview Profil Publik */}
+      <PublicProfilePreviewModal
+        isOpen={isPreviewPublicProfileOpen}
+        publicAccount={publicAccountInfo}
+        onClose={() => setIsPreviewPublicProfileOpen(false)}
       />
 
       {/* Modal Opsi Keluar / Hapus Akun */}
