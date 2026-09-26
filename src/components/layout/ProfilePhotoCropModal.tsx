@@ -142,6 +142,7 @@ export function ProfilePhotoCropModal({
                 ref={imageRef}
                 src={imageSrc}
                 alt="Crop preview"
+                crossOrigin="anonymous"
                 draggable={false}
                 style={{
                   transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom})`,

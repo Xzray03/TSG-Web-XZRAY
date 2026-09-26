@@ -330,7 +330,7 @@ export default function ManagePublicAccountModal({
               {/* Nickname */}
               <div>
                 <label className="block text-xs font-medium text-slate-300 mb-1.5">
-                  Nickname Publik <span className="text-emerald-400">*</span> (Harus Unik, Tanpa Spasi)
+                  Nickname Publik <span className="text-emerald-400">*</span>
                 </label>
                 <div className="relative">
                   <input

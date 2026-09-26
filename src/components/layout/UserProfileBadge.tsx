@@ -5,7 +5,6 @@ import { motion, AnimatePresence } from "framer-motion";
 import { FaUser } from "react-icons/fa";
 import {
   X,
-  Edit3,
   Check,
   AlertCircle,
   LogOut,
@@ -612,21 +611,6 @@ export function UserProfileBadge() {
                         ANGGOTA TSG
                       </span>
                     )}
-                    {hasData && !isEditing && (
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setIsEditing(true);
-                          setTempName(profile.name);
-                          setTempGen(profile.generation);
-                          setIsTsgMemberCheckbox(!!profile.isTsgMember);
-                        }}
-                        title="Ubah Profil Akun"
-                        className="text-white/40 hover:text-emerald-400 transition-colors cursor-pointer p-1 rounded-lg hover:bg-white/5"
-                      >
-                        <Edit3 className="w-3.5 h-3.5" />
-                      </button>
-                    )}
                   </div>
                   <p className="text-xs text-white/60 font-medium">
                     {profile.generation
@@ -946,8 +930,6 @@ export function UserProfileBadge() {
       <ManageAccountModal
         isOpen={isManageAccountOpen}
         userName={profile.name}
-        isTsgMember={!!profile.isTsgMember}
-        generation={profile.generation}
         onClose={() => setIsManageAccountOpen(false)}
         onSwitchAccount={() => {
           setIsManageAccountOpen(false);
@@ -965,14 +947,6 @@ export function UserProfileBadge() {
           setIsManageAccountOpen(false);
           setAuthMode("register");
           setTempName(profile.name);
-          setIsFaceModalOpen(true);
-        }}
-        onChangeCreatorFaceTrigger={() => {
-          setIsManageAccountOpen(false);
-          setAuthMode("register");
-          setTempName(profile.name);
-          setTempGen(profile.generation);
-          setIsTsgMemberState(true);
           setIsFaceModalOpen(true);
         }}
       />
@@ -1222,6 +1196,7 @@ export function UserProfileBadge() {
         logoUrl={profile.iconDataUrl}
         alt={profile.name}
         isTsgMember={profile.isTsgMember}
+        sanityPhotoUrl={tsgInfoState?.photo}
         onClose={() => setIsLogoModalOpen(false)}
         onUpdatePhoto={(newPhotoUrl) => {
           const updated = { ...profile, iconDataUrl: newPhotoUrl };
