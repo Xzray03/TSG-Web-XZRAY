@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { createPortal } from "react-dom";
 import Image from "next/image";
 import { motion, AnimatePresence } from "framer-motion";
 import { ZoomIn } from "lucide-react";
@@ -13,6 +14,9 @@ interface GalleryLightboxWrapperProps {
 
 export function GalleryLightboxWrapper({ items }: GalleryLightboxWrapperProps) {
   const [selected, setSelected] = useState<GalleryItem | null>(null);
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => setMounted(true), []);
 
   useEffect(() => {
     document.body.style.overflow = selected ? "hidden" : "";
@@ -53,11 +57,14 @@ export function GalleryLightboxWrapper({ items }: GalleryLightboxWrapperProps) {
         ))}
       </div>
 
-      <AnimatePresence>
-        {selected && (
-          <GalleryLightbox item={selected} onClose={() => setSelected(null)} />
-        )}
-      </AnimatePresence>
+      {mounted && createPortal(
+        <AnimatePresence>
+          {selected && (
+            <GalleryLightbox item={selected} onClose={() => setSelected(null)} />
+          )}
+        </AnimatePresence>,
+        document.body
+      )}
     </>
   );
 }

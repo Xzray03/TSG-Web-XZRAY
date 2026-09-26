@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useMemo, useEffect } from "react";
+import { createPortal } from "react-dom";
 import Image from "next/image";
 import { motion, AnimatePresence } from "framer-motion";
 import { ZoomIn } from "lucide-react";
@@ -19,6 +20,9 @@ export function GalleryPageClient({ images }: GalleryPageClientProps) {
   );
   const [activeCategory, setActiveCategory] = useState("Semua");
   const [selected, setSelected] = useState<GalleryItem | null>(null);
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => setMounted(true), []);
 
   const filtered = useMemo(
     () =>
@@ -102,11 +106,14 @@ export function GalleryPageClient({ images }: GalleryPageClientProps) {
         </motion.div>
       </AnimatePresence>
 
-      <AnimatePresence>
-        {selected && (
-          <GalleryLightbox item={selected} onClose={() => setSelected(null)} />
-        )}
-      </AnimatePresence>
+      {mounted && createPortal(
+        <AnimatePresence>
+          {selected && (
+            <GalleryLightbox item={selected} onClose={() => setSelected(null)} />
+          )}
+        </AnimatePresence>,
+        document.body
+      )}
     </>
   );
 }

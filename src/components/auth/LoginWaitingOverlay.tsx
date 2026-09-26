@@ -11,8 +11,8 @@ export default function LoginWaitingOverlay({
   onCancel?: () => void;
 }) {
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/85 backdrop-blur-md p-4">
-      <div className="bg-slate-900 border border-amber-500/50 rounded-2xl max-w-sm w-full p-6 text-white text-center shadow-2xl animate-in fade-in zoom-in duration-200">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/85 backdrop-blur-md p-4 overflow-y-auto">
+      <div className="my-auto bg-slate-900 border border-amber-500/50 rounded-2xl max-w-sm w-full p-6 text-white text-center shadow-2xl animate-in fade-in zoom-in duration-200">
         <div className="w-16 h-16 bg-amber-500/10 rounded-full flex items-center justify-center mx-auto mb-4 border border-amber-500/30">
           <Loader2 className="w-8 h-8 text-amber-400 animate-spin" />
         </div>

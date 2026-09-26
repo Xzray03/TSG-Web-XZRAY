@@ -486,7 +486,7 @@ export function UserProfileBadge() {
               initial={{ scale: 0.95, opacity: 0, y: 20 }}
               animate={{ scale: 1, opacity: 1, y: 0 }}
               exit={{ scale: 0.95, opacity: 0, y: 20 }}
-              className="relative w-full max-w-md sm:max-w-lg md:max-w-xl max-h-[90vh] overflow-y-auto rounded-3xl bg-slate-900 border border-white/20 p-6 shadow-2xl text-white scrollbar-thin"
+              className="relative my-auto w-full max-w-md sm:max-w-lg md:max-w-xl max-h-[90vh] overflow-y-auto rounded-3xl bg-slate-900 border border-white/20 p-6 shadow-2xl text-white scrollbar-thin"
             >
               <button
                 type="button"
@@ -824,7 +824,7 @@ export function UserProfileBadge() {
               initial={{ scale: 0.95, opacity: 0, y: 20 }}
               animate={{ scale: 1, opacity: 1, y: 0 }}
               exit={{ scale: 0.95, opacity: 0, y: 20 }}
-              className="relative w-full max-w-md sm:max-w-lg md:max-w-xl rounded-3xl bg-slate-900 border border-amber-500/30 p-6 sm:p-7 shadow-[0_0_100px_rgba(245,158,11,0.25)] text-white"
+              className="relative my-auto w-full max-w-md sm:max-w-lg md:max-w-xl rounded-3xl bg-slate-900 border border-amber-500/30 p-6 sm:p-7 shadow-[0_0_100px_rgba(245,158,11,0.25)] text-white"
             >
               <button
                 type="button"
@@ -902,7 +902,7 @@ export function UserProfileBadge() {
               initial={{ scale: 0.95, opacity: 0, y: 20 }}
               animate={{ scale: 1, opacity: 1, y: 0 }}
               exit={{ scale: 0.95, opacity: 0, y: 20 }}
-              className="relative w-full max-w-md rounded-3xl bg-slate-900 border border-rose-500/40 p-6 sm:p-7 shadow-[0_0_80px_rgba(225,29,72,0.25)] text-white"
+              className="relative my-auto w-full max-w-md rounded-3xl bg-slate-900 border border-rose-500/40 p-6 sm:p-7 shadow-[0_0_80px_rgba(225,29,72,0.25)] text-white"
             >
               <button
                 type="button"

@@ -22,7 +22,7 @@ export default function LogoutChoiceModal({
 
   return (
     <div className="fixed inset-0 z-[999999] flex items-center justify-center bg-black/85 backdrop-blur-md p-4 overflow-y-auto">
-      <div className="relative w-full max-w-md sm:max-w-lg md:max-w-xl max-h-[90vh] overflow-y-auto rounded-3xl bg-slate-900 border border-white/20 p-6 shadow-[0_0_100px_rgba(0,0,0,0.9)] text-white scrollbar-thin">
+      <div className="relative my-auto w-full max-w-md sm:max-w-lg md:max-w-xl max-h-[90vh] overflow-y-auto rounded-3xl bg-slate-900 border border-white/20 p-6 shadow-[0_0_100px_rgba(0,0,0,0.9)] text-white scrollbar-thin">
         <button
           type="button"
           onClick={onClose}

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { createPortal } from "react-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import Image from "next/image";
 import { ArrowRight, Camera, ZoomIn } from "lucide-react";
@@ -14,6 +15,9 @@ interface GalleryPreviewProps {
 
 export function GalleryPreview({ images }: GalleryPreviewProps) {
   const [selected, setSelected] = useState<GalleryItem | null>(null);
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => setMounted(true), []);
 
   // Home cuma nampilin ringkasan — maksimal 6 foto terbaru.
   const previewImages = images.slice(0, 6);
@@ -119,11 +123,14 @@ export function GalleryPreview({ images }: GalleryPreviewProps) {
         </motion.div>
       </div>
 
-      <AnimatePresence>
-        {selected && (
-          <GalleryLightbox item={selected} onClose={() => setSelected(null)} />
-        )}
-      </AnimatePresence>
+      {mounted && createPortal(
+        <AnimatePresence>
+          {selected && (
+            <GalleryLightbox item={selected} onClose={() => setSelected(null)} />
+          )}
+        </AnimatePresence>,
+        document.body
+      )}
     </section>
   );
 }

@@ -97,13 +97,13 @@ export function ProfilePhotoCropModal({
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         exit={{ opacity: 0 }}
-        className="fixed inset-0 z-[100000001] flex items-center justify-center bg-black/85 backdrop-blur-md p-4"
+        className="fixed inset-0 z-[100000001] flex items-center justify-center bg-black/85 backdrop-blur-md p-4 overflow-y-auto"
       >
         <motion.div
           initial={{ scale: 0.95, opacity: 0, y: 10 }}
           animate={{ scale: 1, opacity: 1, y: 0 }}
           exit={{ scale: 0.95, opacity: 0, y: 10 }}
-          className="relative w-full max-w-md rounded-3xl bg-slate-900 border border-white/20 p-6 shadow-2xl text-white select-none"
+          className="relative my-auto w-full max-w-md rounded-3xl bg-slate-900 border border-white/20 p-6 shadow-2xl text-white select-none"
         >
           <button
             type="button"

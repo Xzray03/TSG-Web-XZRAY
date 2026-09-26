@@ -30,7 +30,7 @@ export function EventModal({ event, onClose }: EventModalProps) {
         layoutId={`event-card-${event.id}`}
         transition={{ type: "spring", stiffness: 300, damping: 30 }}
         onClick={(e) => e.stopPropagation()}
-        className="glass-strong relative w-full max-w-2xl overflow-hidden rounded-3xl border border-white/10"
+        className="glass-strong relative my-auto w-full max-w-2xl overflow-hidden rounded-3xl border border-white/10"
       >
         <button
           type="button"

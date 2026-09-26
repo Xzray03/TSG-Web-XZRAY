@@ -153,7 +153,7 @@ export function LoginVerifURLModal({
           initial={{ scale: 0.95, opacity: 0, y: 20 }}
           animate={{ scale: 1, opacity: 1, y: 0 }}
           exit={{ scale: 0.95, opacity: 0, y: 20 }}
-          className="relative w-full max-w-md rounded-3xl bg-slate-900 border border-blue-500/40 p-6 sm:p-7 shadow-[0_0_100px_rgba(59,130,246,0.3)] text-white"
+          className="relative my-auto w-full max-w-md rounded-3xl bg-slate-900 border border-blue-500/40 p-6 sm:p-7 shadow-[0_0_100px_rgba(59,130,246,0.3)] text-white"
         >
           <button
             type="button"

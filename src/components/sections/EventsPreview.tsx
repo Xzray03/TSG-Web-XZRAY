@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { createPortal } from "react-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { ArrowRight, CalendarClock } from "lucide-react";
 import { EventPreviewTile } from "@/components/events/EventPreviewTile";
@@ -16,6 +17,11 @@ interface EventsPreviewProps {
 
 export function EventsPreview({ events, serverCountdowns }: EventsPreviewProps) {
   const [selected, setSelected] = useState<EventItem | null>(null);
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   const upcoming = events
     .filter((e) => e.status === "upcoming")
@@ -100,11 +106,15 @@ export function EventsPreview({ events, serverCountdowns }: EventsPreviewProps) 
         </motion.div>
       </div>
 
-      <AnimatePresence>
-        {selected && (
-          <EventModal event={selected} onClose={() => setSelected(null)} />
+      {mounted &&
+        createPortal(
+          <AnimatePresence>
+            {selected && (
+              <EventModal event={selected} onClose={() => setSelected(null)} />
+            )}
+          </AnimatePresence>,
+          document.body,
         )}
-      </AnimatePresence>
     </section>
   );
 }

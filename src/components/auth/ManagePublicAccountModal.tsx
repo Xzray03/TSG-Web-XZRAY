@@ -268,7 +268,7 @@ export default function ManagePublicAccountModal({
   return (
     <>
       <div className="fixed inset-0 z-[999999] flex items-center justify-center bg-black/85 backdrop-blur-md p-4 overflow-y-auto">
-        <div className="relative w-full max-w-lg max-h-[90vh] overflow-y-auto rounded-3xl bg-slate-900 border border-emerald-500/30 p-6 sm:p-7 shadow-[0_0_100px_rgba(0,0,0,0.9)] text-white scrollbar-thin">
+        <div className="relative my-auto w-full max-w-lg max-h-[90vh] overflow-y-auto rounded-3xl bg-slate-900 border border-emerald-500/30 p-6 sm:p-7 shadow-[0_0_100px_rgba(0,0,0,0.9)] text-white scrollbar-thin">
           <button
             type="button"
             onClick={onClose}
@@ -476,7 +476,7 @@ export default function ManagePublicAccountModal({
       {/* Social Media Sub-Modal */}
       {isSocialsModalOpen && (
         <div className="fixed inset-0 z-[9999999] flex items-center justify-center bg-black/85 backdrop-blur-md p-4 overflow-y-auto">
-          <div className="relative w-full max-w-md rounded-3xl bg-slate-900 border border-emerald-500/30 p-6 text-white space-y-4">
+          <div className="relative my-auto w-full max-w-md rounded-3xl bg-slate-900 border border-emerald-500/30 p-6 text-white space-y-4">
             <div className="flex items-center justify-between pb-3 border-b border-white/10">
               <h4 className="font-bold text-sm flex items-center gap-2">
                 <Share2 className="w-4 h-4 text-emerald-400" />

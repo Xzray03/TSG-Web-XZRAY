@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { createPortal } from "react-dom";
 import { AnimatePresence } from "framer-motion";
 import { History } from "lucide-react";
 import { EventPreviewTile } from "./EventPreviewTile";
@@ -15,6 +16,9 @@ interface EventsPageClientProps {
 
 export function EventsPageClient({ upcoming, past }: EventsPageClientProps) {
   const [selected, setSelected] = useState<EventItem | null>(null);
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => setMounted(true), []);
 
   // Kunci scroll halaman di belakang selagi modal terbuka.
   useEffect(() => {
@@ -71,11 +75,15 @@ export function EventsPageClient({ upcoming, past }: EventsPageClientProps) {
         <PastEventTimeline events={past} />
       </div>
 
-      <AnimatePresence>
-        {selected && (
-          <EventModal event={selected} onClose={() => setSelected(null)} />
+      {mounted &&
+        createPortal(
+          <AnimatePresence>
+            {selected && (
+              <EventModal event={selected} onClose={() => setSelected(null)} />
+            )}
+          </AnimatePresence>,
+          document.body
         )}
-      </AnimatePresence>
     </>
   );
 }

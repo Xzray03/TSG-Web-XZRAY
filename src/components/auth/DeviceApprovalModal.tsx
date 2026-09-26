@@ -15,8 +15,8 @@ export default function DeviceApprovalModal({
   const info = requestData.requester_device_info || {};
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-md p-4">
-      <div className="bg-slate-900 border border-red-500/50 rounded-2xl max-w-md w-full p-6 text-white shadow-2xl animate-in fade-in zoom-in duration-200">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-md p-4 overflow-y-auto">
+      <div className="my-auto bg-slate-900 border border-red-500/50 rounded-2xl max-w-md w-full p-6 text-white shadow-2xl animate-in fade-in zoom-in duration-200">
         <div className="flex items-center space-x-3 text-red-400 mb-4">
           <ShieldAlert className="w-8 h-8 animate-pulse" />
           <h3 className="text-xl font-bold tracking-tight">Permintaan Login Baru</h3>

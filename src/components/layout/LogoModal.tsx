@@ -57,7 +57,7 @@ export function LogoModal({
         exit={{ opacity: 0 }}
         transition={{ duration: 0.2 }}
         onClick={onClose}
-        className="fixed inset-0 z-[10000000] flex items-center justify-center bg-background/85 p-4 backdrop-blur-md sm:p-8"
+        className="fixed inset-0 z-[10000000] flex items-center justify-center bg-background/85 p-4 backdrop-blur-md sm:p-8 overflow-y-auto"
       >
         <motion.div
           initial={{ scale: 0.9, opacity: 0 }}
@@ -65,7 +65,7 @@ export function LogoModal({
           exit={{ scale: 0.9, opacity: 0 }}
           transition={{ type: "spring", stiffness: 300, damping: 25 }}
           onClick={(e) => e.stopPropagation()}
-          className="glass-strong relative flex max-h-[90vh] max-w-3xl flex-col items-center justify-center overflow-hidden rounded-3xl border border-white/10 p-6 sm:p-10 shadow-[0_0_80px_rgba(0,0,0,0.8)]"
+          className="glass-strong relative my-auto flex max-h-[90vh] max-w-3xl flex-col items-center justify-center overflow-hidden rounded-3xl border border-white/10 p-6 sm:p-10 shadow-[0_0_80px_rgba(0,0,0,0.8)]"
         >
           <button
             type="button"

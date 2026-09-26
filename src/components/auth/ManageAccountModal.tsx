@@ -528,7 +528,7 @@ export default function ManageAccountModal({
   return (
     <>
       <div className="fixed inset-0 z-[999999] flex items-center justify-center bg-black/85 backdrop-blur-md p-4 overflow-y-auto">
-        <div className="relative w-full max-w-md sm:max-w-lg md:max-w-xl max-h-[90vh] overflow-y-auto rounded-3xl bg-slate-900 border border-white/20 p-6 sm:p-7 shadow-[0_0_100px_rgba(0,0,0,0.9)] text-white scrollbar-thin">
+        <div className="relative my-auto w-full max-w-md sm:max-w-lg md:max-w-xl max-h-[90vh] overflow-y-auto rounded-3xl bg-slate-900 border border-white/20 p-6 sm:p-7 shadow-[0_0_100px_rgba(0,0,0,0.9)] text-white scrollbar-thin">
           <button
             type="button"
             onClick={onClose}
@@ -1131,7 +1131,7 @@ export default function ManageAccountModal({
             exit={{ opacity: 0 }}
             className="fixed inset-0 z-[9999999] flex items-center justify-center bg-black/85 backdrop-blur-md p-4 overflow-y-auto"
           >
-            <div className="relative w-full max-w-md rounded-3xl bg-slate-900 border border-purple-500/30 p-6 text-white shadow-2xl space-y-4">
+            <div className="relative my-auto w-full max-w-md rounded-3xl bg-slate-900 border border-purple-500/30 p-6 text-white shadow-2xl space-y-4">
               <div className="flex items-center gap-3">
                 <div className="p-3 rounded-2xl bg-purple-500/20 text-purple-400 border border-purple-500/30 shrink-0">
                   <Mail className="w-6 h-6" />

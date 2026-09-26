@@ -26,7 +26,7 @@ export function GalleryLightbox({ item, onClose }: GalleryLightboxProps) {
         exit={{ opacity: 0, scale: 0.95, y: 10 }}
         transition={{ duration: 0.25, ease: [0.16, 1, 0.3, 1] }}
         onClick={(e) => e.stopPropagation()}
-        className="glass-strong relative w-full max-w-2xl overflow-hidden rounded-3xl border border-white/10"
+        className="glass-strong relative my-auto w-full max-w-2xl overflow-hidden rounded-3xl border border-white/10"
       >
         <button
           type="button"
