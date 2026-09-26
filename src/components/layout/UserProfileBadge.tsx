@@ -666,8 +666,8 @@ export function UserProfileBadge() {
 
                       {/* Bio */}
                       {publicAccountInfo.bio && (
-                        <p className="text-xs text-white/70 leading-relaxed bg-white/5 p-3 rounded-xl border border-white/10 break-words">
-                          “{publicAccountInfo.bio}”
+                        <p className="text-xs text-white/70 leading-relaxed bg-white/5 p-3 rounded-xl border border-white/10 break-words whitespace-pre-wrap">
+                          {publicAccountInfo.bio}
                         </p>
                       )}
 
