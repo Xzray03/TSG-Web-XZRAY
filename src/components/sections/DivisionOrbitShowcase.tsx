@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { motion } from "framer-motion";
 import Image from "next/image";
 import { iconMap } from "@/lib/icon-map";
@@ -31,12 +32,13 @@ export function DivisionOrbitShowcase({
   mouseX,
   mouseY,
 }: DivisionOrbitShowcaseProps) {
+  const [hoveredIndex, setHoveredIndex] = useState<number | null>(null);
   const items = divisions.slice(0, 4);
   const parallaxX = (mouseX - 50) / 50; // -1..1
   const parallaxY = (mouseY - 50) / 50;
 
   return (
-    <div className="relative mx-auto h-[420px] w-[340px] sm:h-[460px] sm:w-[420px]">
+    <div className="relative mx-auto h-[420px] w-[340px] sm:h-[460px] sm:w-[420px] -translate-y-[70px]">
       {/* Ambient center glow */}
       <div className="pointer-events-none absolute left-1/2 top-1/2 h-72 w-72 -translate-x-1/2 -translate-y-1/2 rounded-full bg-primary/10 blur-[110px]" />
 
@@ -86,10 +88,16 @@ export function DivisionOrbitShowcase({
         const theme = divisionTheme[division.color];
         const Icon = iconMap[division.icon] ?? iconMap.Bot;
 
+        const isHovered = hoveredIndex === i;
+        const isOtherHovered = hoveredIndex !== null && !isHovered;
+
+        const scaleValue = isHovered ? 1.18 : isOtherHovered ? 0.88 : 1;
+        const opacityValue = isOtherHovered ? 0.65 : 1;
+
         return (
           <div
             key={division.id}
-            className="absolute transition-transform duration-300 ease-out"
+            className={cn("absolute transition-transform duration-300 ease-out", isHovered ? "z-30" : "z-10")}
             style={{
               top: slot.top,
               left: slot.left,
@@ -101,26 +109,28 @@ export function DivisionOrbitShowcase({
             <motion.div
               initial={{ opacity: 0, scale: 0.4 }}
               animate={{
-                opacity: 1,
-                scale: 1,
+                opacity: opacityValue,
+                scale: scaleValue,
                 x: slot.floatX,
                 y: slot.floatY,
                 rotate: [0, slot.rotate, 0, -slot.rotate, 0],
               }}
+              onMouseEnter={() => setHoveredIndex(i)}
+              onMouseLeave={() => setHoveredIndex(null)}
               transition={{
-                opacity: { duration: 0.6, delay: i * 0.15 },
-                scale: { duration: 0.6, delay: i * 0.15, type: "spring", stiffness: 200 },
+                opacity: { duration: 0.3 },
+                scale: { duration: 0.3, ease: "easeOut" },
                 x: { duration: slot.duration, repeat: Infinity, ease: "easeInOut", delay: slot.delay },
                 y: { duration: slot.duration, repeat: Infinity, ease: "easeInOut", delay: slot.delay },
                 rotate: { duration: slot.duration, repeat: Infinity, ease: "easeInOut", delay: slot.delay },
               }}
-              className="relative"
+              className="relative cursor-pointer"
               style={{ width: slot.size, height: slot.size }}
             >
               {/* Pulsing colored glow behind the logo */}
               <motion.div
                 className={cn("absolute -inset-4 rounded-full blur-2xl", theme.glow)}
-                animate={{ opacity: [0.4, 0.85, 0.4], scale: [1, 1.15, 1] }}
+                animate={{ opacity: isHovered ? 0.95 : [0.4, 0.85, 0.4], scale: isHovered ? 1.25 : [1, 1.15, 1] }}
                 transition={{
                   duration: 3 + i * 0.5,
                   repeat: Infinity,
@@ -130,8 +140,9 @@ export function DivisionOrbitShowcase({
 
               <div
                 className={cn(
-                  "glass-strong relative flex h-full w-full items-center justify-center overflow-hidden rounded-3xl border-2 p-4",
-                  theme.ring
+                  "glass-strong relative flex h-full w-full items-center justify-center overflow-hidden rounded-3xl border-2 p-4 transition-all duration-300",
+                  theme.ring,
+                  isHovered && "border-accent shadow-[0_0_25px_rgba(34,211,238,0.4)]"
                 )}
               >
                 {division.logoUrl ? (
