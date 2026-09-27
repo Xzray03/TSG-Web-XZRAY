@@ -452,6 +452,7 @@ export function UserProfileBadge() {
     setIsModalOpen(false);
     setIsLogoutChoiceOpen(false);
     setIsDeleteAccountOpen(false);
+    window.location.reload();
   };
 
   const hasData = Boolean(profile.name);

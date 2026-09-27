@@ -72,7 +72,8 @@ export function LogoModal({
     setIsSourceChoiceOpen(false);
 
     if (photoUrl) {
-      setCropImageSrc(photoUrl);
+      const uncroppedSanityUrl = photoUrl.includes("cdn.sanity.io") ? photoUrl.split("?")[0] : photoUrl;
+      setCropImageSrc(uncroppedSanityUrl);
       setIsCropModalOpen(true);
     }
   };
