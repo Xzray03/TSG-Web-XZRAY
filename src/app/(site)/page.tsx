@@ -56,6 +56,7 @@ export default async function HomePage() {
 
   return (
     <>
+      <div className="h-[60px]" aria-hidden="true" />
       <Hero
         content={heroContent}
         divisions={divisions}
