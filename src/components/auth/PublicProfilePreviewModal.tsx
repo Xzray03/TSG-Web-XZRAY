@@ -1,6 +1,7 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
+import { createPortal } from "react-dom";
 import Image from "next/image";
 import {
   X,
@@ -37,10 +38,13 @@ export function PublicProfilePreviewModal({
   defaultAvatarUrl = "",
   onClose,
 }: PublicProfilePreviewModalProps) {
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
+
   useScrollLock(isOpen);
   const [isPhotoModalOpen, setIsPhotoModalOpen] = useState(false);
 
-  if (!isOpen || !publicAccount) return null;
+  if (!mounted || !isOpen || !publicAccount) return null;
 
   const displayAvatar = publicAccount.avatar_url || defaultAvatarUrl || "";
 
@@ -50,7 +54,7 @@ export function PublicProfilePreviewModal({
       )
     : [];
 
-  return (
+  return createPortal(
     <>
       <div className="fixed inset-0 z-[999999] flex items-center justify-center bg-black/85 backdrop-blur-md p-4 overflow-y-auto">
         <div className="relative my-auto w-full max-w-md max-h-[90vh] overflow-y-auto rounded-3xl bg-slate-900 border border-blue-500/30 p-6 sm:p-7 shadow-[0_0_100px_rgba(0,0,0,0.9)] text-white scrollbar-thin animate-in fade-in zoom-in duration-200">
@@ -190,6 +194,7 @@ export function PublicProfilePreviewModal({
           onClose={() => setIsPhotoModalOpen(false)}
         />
       )}
-    </>
+    </>,
+    document.body
   );
 }
