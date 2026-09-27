@@ -21,28 +21,12 @@ function sha256(text: string): string {
   return crypto.createHash("sha256").update(text).digest("hex");
 }
 
-async function initSupabaseStorageAndDb(serverSupabase: any) {
-  try {
-    const { data: buckets } = await serverSupabase.storage.listBuckets();
-    const bucketExists = buckets?.some((b: any) => b.name === "face-snapshots");
-
-    if (!bucketExists) {
-      await serverSupabase.storage.createBucket("face-snapshots", {
-        public: true,
-      });
-    }
-  } catch (err) {
-    console.error("Error initializing bucket:", err);
-  }
-}
-
 export async function checkAccountAction(name: string) {
   if (!name || typeof name !== "string") {
     return { error: "Nama wajib diisi" };
   }
 
   const serverSupabase = getSupabaseClient();
-  await initSupabaseStorageAndDb(serverSupabase);
 
   const cleanName = name.trim();
 
@@ -149,7 +133,6 @@ export async function processAuthAction(body: {
   action: string;
   name: string;
   faceVector?: number[];
-  mouthOpenSnapshot?: string;
   password?: string;
   newPassword?: string;
   oldPassword?: string;
@@ -165,9 +148,8 @@ export async function processAuthAction(body: {
   photo?: string;
   newName?: string;
   newFaceVector?: number[];
-  newMouthOpenSnapshot?: string;
 }) {
-  const { action, name, faceVector, mouthOpenSnapshot, password, preferences } = body;
+  const { action, name, faceVector, password, preferences } = body;
 
   if (!name) {
     return { error: "Nama wajib diisi" };
@@ -175,37 +157,12 @@ export async function processAuthAction(body: {
 
   const cleanName = name.trim();
   const serverSupabase = getSupabaseClient();
-  await initSupabaseStorageAndDb(serverSupabase);
   const nowIso = new Date().toISOString();
 
   try {
     if (action === "register_face") {
       if (!faceVector || !Array.isArray(faceVector)) {
         return { error: "Data vektor wajah wajib diisi" };
-      }
-
-      let snapshotUrl = "";
-      if (mouthOpenSnapshot) {
-        let base64Data = mouthOpenSnapshot;
-        if (base64Data.includes("base64,")) {
-          base64Data = base64Data.split("base64,")[1];
-        }
-        const buffer = Buffer.from(base64Data, "base64");
-        const uint8Array = new Uint8Array(buffer);
-        const timestampStr = Date.now();
-        const sanitizedName = cleanName.toLowerCase().replace(/[^a-z0-9]/g, "_");
-        const fileName = `${sanitizedName}/${timestampStr}_mouth_open.jpg`;
-
-        const { data: uploadData, error: uploadErr } = await serverSupabase.storage
-          .from("face-snapshots")
-          .upload(fileName, uint8Array, { contentType: "image/jpeg", upsert: true });
-
-        if (!uploadErr && uploadData) {
-          const { data: publicUrlData } = serverSupabase.storage
-            .from("face-snapshots")
-            .getPublicUrl(fileName);
-          snapshotUrl = publicUrlData?.publicUrl || fileName;
-        }
       }
 
       const { data: existing } = await serverSupabase
@@ -220,7 +177,6 @@ export async function processAuthAction(body: {
           .from("user_accounts")
           .update({
             face_vectors: [faceVector],
-            face_snapshots: snapshotUrl ? [snapshotUrl, ...(acc.face_snapshots || [])].slice(0, 3) : acc.face_snapshots,
             auth_method: acc.password_hash ? "both" : "face",
             is_tsg_member: body.is_tsg_member || acc.is_tsg_member || false,
             generation: acc.generation || body.tsgInfo?.categoryName || body.generation || acc.generation,
@@ -239,7 +195,6 @@ export async function processAuthAction(body: {
           .insert({
             name: cleanName,
             face_vectors: [faceVector],
-            face_snapshots: snapshotUrl ? [snapshotUrl] : [],
             auth_method: "face",
             is_tsg_member: body.is_tsg_member || false,
             email: body.tsgInfo?.email || null,
@@ -628,33 +583,8 @@ export async function processAuthAction(body: {
 
       const acc = existing[0];
       let currentVectors: Array<number[]> = acc.face_vectors || [];
-      let currentSnapshots: string[] = acc.face_snapshots || [];
 
       currentVectors = [faceVector, ...currentVectors].slice(0, 3);
-
-      if (mouthOpenSnapshot) {
-        let base64Data = mouthOpenSnapshot;
-        if (base64Data.includes("base64,")) {
-          base64Data = base64Data.split("base64,")[1];
-        }
-        const buffer = Buffer.from(base64Data, "base64");
-        const uint8Array = new Uint8Array(buffer);
-        const timestampStr = Date.now();
-        const sanitizedName = cleanName.toLowerCase().replace(/[^a-z0-9]/g, "_");
-        const fileName = `${sanitizedName}/${timestampStr}_mouth_open.jpg`;
-
-        const { data: uploadData, error: uploadErr } = await serverSupabase.storage
-          .from("face-snapshots")
-          .upload(fileName, uint8Array, { contentType: "image/jpeg", upsert: true });
-
-        if (!uploadErr && uploadData) {
-          const { data: publicUrlData } = serverSupabase.storage
-            .from("face-snapshots")
-            .getPublicUrl(fileName);
-          const snapshotUrl = publicUrlData?.publicUrl || fileName;
-          currentSnapshots = [snapshotUrl, ...currentSnapshots].slice(0, 3);
-        }
-      }
 
       const hasPassword = Boolean(acc.password_hash);
       const newAuthMethod = hasPassword ? "both" : "face";
@@ -665,7 +595,6 @@ export async function processAuthAction(body: {
         .from("user_accounts")
         .update({
           face_vectors: currentVectors,
-          face_snapshots: currentSnapshots,
           auth_method: newAuthMethod,
           login_preferences: currentPrefs,
           updated_at: nowIso,
@@ -676,7 +605,7 @@ export async function processAuthAction(body: {
     }
 
     if (action === "login_face_update") {
-      const { newFaceVector, newMouthOpenSnapshot } = body as any;
+      const { newFaceVector } = body;
 
       const { data: existing, error: fetchErr } = await serverSupabase
         .from("user_accounts")
@@ -690,41 +619,15 @@ export async function processAuthAction(body: {
 
       const acc = existing[0];
       let currentVectors: Array<number[]> = acc.face_vectors || [];
-      let currentSnapshots: string[] = acc.face_snapshots || [];
 
       if (newFaceVector && Array.isArray(newFaceVector)) {
         currentVectors = [newFaceVector, ...currentVectors].slice(0, 3);
-      }
-
-      if (newMouthOpenSnapshot) {
-        let base64Data = newMouthOpenSnapshot;
-        if (base64Data.includes("base64,")) {
-          base64Data = base64Data.split("base64,")[1];
-        }
-        const buffer = Buffer.from(base64Data, "base64");
-        const uint8Array = new Uint8Array(buffer);
-        const timestampStr = Date.now();
-        const sanitizedName = cleanName.toLowerCase().replace(/[^a-z0-9]/g, "_");
-        const fileName = `${sanitizedName}/${timestampStr}_mouth_open.jpg`;
-
-        const { data: uploadData2, error: uploadErr2 } = await serverSupabase.storage
-          .from("face-snapshots")
-          .upload(fileName, uint8Array, { contentType: "image/jpeg", upsert: true });
-
-        if (!uploadErr2 && uploadData2) {
-          const { data: publicUrlData } = serverSupabase.storage
-            .from("face-snapshots")
-            .getPublicUrl(fileName);
-          const snapshotUrl = publicUrlData?.publicUrl || fileName;
-          currentSnapshots = [snapshotUrl, ...currentSnapshots].slice(0, 3);
-        }
       }
 
       await serverSupabase
         .from("user_accounts")
         .update({
           face_vectors: currentVectors,
-          face_snapshots: currentSnapshots,
           updated_at: nowIso,
         })
         .eq("id", acc.id);
@@ -856,18 +759,6 @@ export async function processAuthAction(body: {
       }
 
       const acc = existing[0];
-      const sanitizedName = cleanName.toLowerCase().replace(/[^a-z0-9]/g, "_");
-
-      try {
-        const { data: fileList } = await serverSupabase.storage
-          .from("face-snapshots")
-          .list(sanitizedName);
-
-        if (fileList && fileList.length > 0) {
-          const filesToDelete = fileList.map((f: any) => `${sanitizedName}/${f.name}`);
-          await serverSupabase.storage.from("face-snapshots").remove(filesToDelete);
-        }
-      } catch (e) {}
 
       const { error: delErr } = await serverSupabase
         .from("user_accounts")
@@ -907,18 +798,6 @@ export async function deleteAccountAction(name: string) {
     }
 
     const acc = existing[0];
-    const sanitizedName = cleanName.toLowerCase().replace(/[^a-z0-9]/g, "_");
-
-    try {
-      const { data: fileList } = await serverSupabase.storage
-        .from("face-snapshots")
-        .list(sanitizedName);
-
-      if (fileList && fileList.length > 0) {
-        const filesToDelete = fileList.map((f: any) => `${sanitizedName}/${f.name}`);
-        await serverSupabase.storage.from("face-snapshots").remove(filesToDelete);
-      }
-    } catch (e) {}
 
     const { error: delErr } = await serverSupabase
       .from("user_accounts")

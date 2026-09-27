@@ -140,64 +140,6 @@ export async function postTeamSnapshotAction(body: {
       const serverSupabase = getSupabaseClient();
 
       try {
-        const { data: buckets } = await serverSupabase.storage.listBuckets();
-        const bucketExists = buckets?.some((b: any) => b.name === "face-snapshots");
-
-        if (!bucketExists) {
-          await serverSupabase.storage.createBucket("face-snapshots", {
-            public: true,
-          });
-        }
-
-        const now = new Date();
-        const pad = (n: number) => String(n).padStart(2, "0");
-        const day = pad(now.getDate());
-        const month = pad(now.getMonth() + 1);
-        const year = now.getFullYear();
-        const hours = pad(now.getHours());
-        const minutes = pad(now.getMinutes());
-        const seconds = pad(now.getSeconds());
-        const timestampStr = `${day}-${month}-${year}-${hours}-${minutes}-${seconds}`;
-
-        const sanitizedName = matchedMember.name.toLowerCase().replace(/[^a-z0-9]/g, "_");
-        const mId = memberId || matchedMember._id || "unknown";
-
-        if (Array.isArray(snapshots) && snapshots.length > 0) {
-          for (const s of snapshots) {
-            let base64Data = s.data;
-            if (base64Data.includes("base64,")) {
-              base64Data = base64Data.split("base64,")[1];
-            }
-            const buffer = Buffer.from(base64Data, "base64");
-            const uint8Array = new Uint8Array(buffer);
-
-            const fileName = `${sanitizedName}/${timestampStr}/${mId}_${timestampStr}_${s.label}.jpg`;
-
-            await serverSupabase.storage
-              .from("face-snapshots")
-              .upload(fileName, uint8Array, {
-                contentType: "image/jpeg",
-                upsert: true,
-              });
-          }
-        } else if (blinkSnapshot) {
-          let base64Data = blinkSnapshot;
-          if (blinkSnapshot.includes("base64,")) {
-            base64Data = blinkSnapshot.split("base64,")[1];
-          }
-          const buffer = Buffer.from(base64Data, "base64");
-          const uint8Array = new Uint8Array(buffer);
-
-          const fileName = `${sanitizedName}/${timestampStr}/${mId}_${timestampStr}_blink.jpg`;
-
-          await serverSupabase.storage
-            .from("face-snapshots")
-            .upload(fileName, uint8Array, {
-              contentType: "image/jpeg",
-              upsert: true,
-            });
-        }
-
         const { data: listUsers } = await serverSupabase.auth.admin.listUsers();
         const existingUser = listUsers?.users?.find(
           (u: any) => u.email === memberEmailClean

@@ -386,15 +386,12 @@ export default function FaceVerificationModal({
                       Array.from(vMouth || baseVec),
                     ];
 
-                    const snapDataToSave = mouthSnap || blinkSnap || "";
-
                     if (mode === "register") {
-                      // PENDAFTARAN PERTAMA KALI: Simpan 4 vektor + foto buka mulut
+                      // PENDAFTARAN PERTAMA KALI: Simpan 4 vektor
                       const data: any = await processAuthAction({
                         action: "register_face",
                         name: initialName || "",
                         faceVector: fourVectors as any,
-                        mouthOpenSnapshot: snapDataToSave,
                         isTsgMember: isTsgMember,
                         tsgInfo: tsgInfo,
                       });
@@ -453,12 +450,11 @@ export default function FaceVerificationModal({
                         throw new Error("Verifikasi Wajah Gagal: Wajah tidak cocok dengan patokan pendaftaran utama.");
                       }
 
-                      // Update histori (menambah histori login terbaru & foto buka mulut, FIFO max 3, namun patokan utama tetap tidak berubah)
+                      // Update histori (menambah histori login terbaru, FIFO max 3, namun patokan utama tetap tidak berubah)
                       await processAuthAction({
                         action: "login_face_update",
                         name: initialName || "",
                         newFaceVector: fourVectors as any,
-                        newMouthOpenSnapshot: snapDataToSave,
                       });
                     }
 
