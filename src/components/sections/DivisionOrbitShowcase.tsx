@@ -24,6 +24,11 @@ const SLOTS = [
   { top: "58%", left: "54%", size: 114, floatX: [0, -18, 12, 0], floatY: [0, 14, -18, 0], rotate: -6, duration: 12.5, delay: 1.6, depth: 0.9 },
 ];
 
+// Ukuran target saat hover -- semua kotak dibesarkan sampai 156px,
+// jadi box kecil (104px) dapat scale lebih besar daripada box besar.
+// (156 = 132 * 1.18, box terbesar tetap ~1.18x seperti sebelumnya.)
+const HOVER_TARGET_SIZE = 156;
+
 // Titik-titik sambungan antar slot (dipakai buat garis "constellation").
 const LINE_PATH = "M 58 56 L 320 68 L 380 300 L 174 320 Z";
 
@@ -38,7 +43,7 @@ export function DivisionOrbitShowcase({
   const parallaxY = (mouseY - 50) / 50;
 
   return (
-    <div className="relative mx-auto h-[420px] w-[340px] sm:h-[460px] sm:w-[420px] -translate-y-[70px]">
+    <div className="relative mx-auto h-[420px] w-[340px] sm:h-[460px] sm:w-[420px] -translate-y-[90px]">
       {/* Ambient center glow */}
       <div className="pointer-events-none absolute left-1/2 top-1/2 h-72 w-72 -translate-x-1/2 -translate-y-1/2 rounded-full bg-primary/10 blur-[110px]" />
 
@@ -91,7 +96,8 @@ export function DivisionOrbitShowcase({
         const isHovered = hoveredIndex === i;
         const isOtherHovered = hoveredIndex !== null && !isHovered;
 
-        const scaleValue = isHovered ? 1.18 : isOtherHovered ? 0.88 : 1;
+        const hoverScale = HOVER_TARGET_SIZE / slot.size;
+        const scaleValue = isHovered ? hoverScale : isOtherHovered ? 0.88 : 1;
         const opacityValue = isOtherHovered ? 0.65 : 1;
 
         return (
