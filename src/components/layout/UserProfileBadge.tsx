@@ -427,6 +427,7 @@ export function UserProfileBadge() {
     setErrorMsg("");
     setIsEditing(false);
     setIsModalOpen(false);
+    window.location.reload();
   };
 
   const handleSignOut = async () => {
