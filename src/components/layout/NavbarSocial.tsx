@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
-import { ChevronRight, ChevronLeft, MessageSquare } from "lucide-react";
+import { ChevronRight, ChevronLeft, MessageSquare, MessageCircle } from "lucide-react";
 import { getPublicAccountAction } from "@/actions/publicAccountActions";
 
 export function NavbarSocial() {
@@ -87,6 +87,13 @@ export function NavbarSocial() {
               >
                 <MessageSquare className="w-4 h-4 text-emerald-400 group-hover:rotate-12 transition-transform" />
                 <span>Social</span>
+              </Link>
+              <Link
+                href="/chat"
+                className="group relative flex items-center gap-2 px-3.5 py-2.5 rounded-xl bg-gradient-to-r from-blue-500/20 to-indigo-500/20 hover:from-blue-500/30 hover:to-indigo-500/30 border border-blue-500/30 text-white font-semibold text-xs transition-all duration-300 hover:scale-105 active:scale-95 cursor-pointer whitespace-nowrap shadow-lg shadow-blue-500/10"
+              >
+                <MessageCircle className="w-4 h-4 text-blue-400 group-hover:rotate-12 transition-transform" />
+                <span>Chat</span>
               </Link>
             </div>
 
