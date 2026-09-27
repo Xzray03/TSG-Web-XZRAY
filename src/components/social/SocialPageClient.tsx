@@ -5,9 +5,28 @@ import { useRouter } from "next/navigation";
 import Image from "next/image";
 import { motion, AnimatePresence } from "framer-motion";
 import { FaUser } from "react-icons/fa";
-import { MessageSquare, Plus, Link as LinkIcon, Send, Loader2, ExternalLink, X } from "lucide-react";
+import {
+  MessageSquare,
+  Plus,
+  Link as LinkIcon,
+  Send,
+  Loader2,
+  ExternalLink,
+  X,
+  RefreshCw,
+  Trash2,
+  ChevronsLeft,
+  ChevronLeft,
+  ChevronRight,
+  ChevronsRight,
+} from "lucide-react";
 import { getPublicAccountAction } from "@/actions/publicAccountActions";
-import { getSocialPostsAction, createSocialPostAction, createSocialCommentAction } from "@/actions/socialActions";
+import {
+  getSocialPostsAction,
+  createSocialPostAction,
+  createSocialCommentAction,
+  deleteSocialPostAction,
+} from "@/actions/socialActions";
 import { PublicProfilePreviewModal } from "@/components/auth/PublicProfilePreviewModal";
 import { useScrollLock } from "@/hooks/useScrollLock";
 
@@ -15,10 +34,13 @@ interface SocialPageClientProps {
   initialPosts: any[];
 }
 
+const POSTS_PER_PAGE = 10;
+
 export function SocialPageClient({ initialPosts }: SocialPageClientProps) {
   const router = useRouter();
   const [posts, setPosts] = useState<any[]>(initialPosts);
   const [isLoading, setIsLoading] = useState(false);
+  const [isRefreshing, setIsRefreshing] = useState(false);
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [content, setContent] = useState("");
   const [linkUrl, setLinkUrl] = useState("");
@@ -31,10 +53,17 @@ export function SocialPageClient({ initialPosts }: SocialPageClientProps) {
   const [submittingComment, setSubmittingComment] = useState<Record<string, boolean>>({});
   const [previewProfile, setPreviewProfile] = useState<any>(null);
 
-  useScrollLock(showCreateForm);
+  // Pagination state
+  const [currentPage, setCurrentPage] = useState(0);
+
+  // Delete confirmation modal state
+  const [postToDelete, setPostToDelete] = useState<any>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
+
+  useScrollLock(showCreateForm || !!postToDelete);
 
   useEffect(() => {
-    async function verifyAuth() {
+    async function verifyAuthAndLoad() {
       try {
         const saved = localStorage.getItem("tsg_user_profile");
         if (!saved) {
@@ -42,16 +71,11 @@ export function SocialPageClient({ initialPosts }: SocialPageClientProps) {
           return;
         }
         const parsed = JSON.parse(saved);
-        if (!parsed || !parsed.name) {
+        if (!parsed || !parsed.name || !parsed.id) {
           router.replace("/");
           return;
         }
         setProfile(parsed);
-
-        if (!parsed.id) {
-          router.replace("/");
-          return;
-        }
 
         const res: any = await getPublicAccountAction(parsed.id);
         if (!res || !res.publicAccount || !res.publicAccount.nickname) {
@@ -59,15 +83,25 @@ export function SocialPageClient({ initialPosts }: SocialPageClientProps) {
           return;
         }
         setPublicAccount(res.publicAccount);
+
+        // Load posts on page open
+        await fetchPosts();
       } catch (e) {
         router.replace("/");
       }
     }
-    verifyAuth();
+    verifyAuthAndLoad();
+
+    // Auto load posts every 1 minute (60 seconds)
+    const interval = setInterval(() => {
+      fetchPosts(true);
+    }, 60000);
+
+    return () => clearInterval(interval);
   }, [router]);
 
-  const refreshPosts = async () => {
-    setIsLoading(true);
+  const fetchPosts = async (silent = false) => {
+    if (!silent) setIsLoading(true);
     try {
       const res: any = await getSocialPostsAction();
       if (res && res.posts) {
@@ -75,8 +109,14 @@ export function SocialPageClient({ initialPosts }: SocialPageClientProps) {
       }
     } catch (e) {
     } finally {
-      setIsLoading(false);
+      if (!silent) setIsLoading(false);
     }
+  };
+
+  const handleManualRefresh = async () => {
+    setIsRefreshing(true);
+    await fetchPosts();
+    setIsRefreshing(false);
   };
 
   const handleCreatePost = async (e: React.FormEvent) => {
@@ -103,7 +143,8 @@ export function SocialPageClient({ initialPosts }: SocialPageClientProps) {
         setContent("");
         setLinkUrl("");
         setShowCreateForm(false);
-        await refreshPosts();
+        setCurrentPage(0); // Jump to newest page
+        await fetchPosts();
       }
     } catch (err: any) {
       setErrorMsg(err.message || "Gagal membuat postingan.");
@@ -126,7 +167,7 @@ export function SocialPageClient({ initialPosts }: SocialPageClientProps) {
       });
       if (!res?.error) {
         setCommentInputs((prev) => ({ ...prev, [postId]: "" }));
-        await refreshPosts();
+        await fetchPosts();
       }
     } catch (e) {
     } finally {
@@ -134,8 +175,38 @@ export function SocialPageClient({ initialPosts }: SocialPageClientProps) {
     }
   };
 
+  const handleDeletePostConfirm = async () => {
+    if (!postToDelete || !profile?.id) return;
+    setIsDeleting(true);
+    try {
+      const res: any = await deleteSocialPostAction({
+        postId: postToDelete.id,
+        realAccountId: profile.id,
+      });
+      if (res?.error) {
+        alert(res.error);
+      } else {
+        setPostToDelete(null);
+        await fetchPosts();
+      }
+    } catch (e: any) {
+      alert(e.message || "Gagal menghapus postingan.");
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
+  const isCreator =
+    profile?.generation?.toLowerCase() === "creator" ||
+    profile?.name?.toLowerCase() === "creator";
+
+  // Pagination calculations
+  const totalPages = Math.ceil(posts.length / POSTS_PER_PAGE) || 1;
+  const startIndex = currentPage * POSTS_PER_PAGE;
+  const currentPosts = posts.slice(startIndex, startIndex + POSTS_PER_PAGE);
+
   return (
-    <div className="bg-grid relative overflow-hidden pb-10 pt-36 min-h-screen">
+    <div className="bg-grid relative overflow-hidden pb-16 pt-36 min-h-screen">
       <div className="pointer-events-none absolute left-1/2 top-24 -z-10 h-[420px] w-[420px] -translate-x-1/2 rounded-full bg-primary/10 blur-[140px]" />
 
       <div className="mx-auto max-w-3xl px-6 sm:px-10">
@@ -152,17 +223,28 @@ export function SocialPageClient({ initialPosts }: SocialPageClientProps) {
           </p>
         </div>
 
-        <div className="mb-6 flex justify-center">
+        <div className="mb-6 flex items-center justify-center gap-3">
           <button
             type="button"
             onClick={() => setShowCreateForm(true)}
-            className="flex items-center gap-2 rounded-xl bg-emerald-500 hover:bg-emerald-400 px-5 py-3 text-sm font-semibold text-slate-950 transition-all hover:scale-105 active:scale-95 cursor-pointer shadow-lg shadow-emerald-500/20"
+            className="flex items-center gap-2 rounded-xl bg-emerald-500 hover:bg-emerald-400 px-5 py-3 text-sm font-semibold text-slate-950 transition-all hover:scale-105 active:scale-95 cursor-pointer shadow-lg shadow-emerald-500/25"
           >
             <Plus className="h-4 w-4" />
             <span>Buat Postingan</span>
           </button>
+          <button
+            type="button"
+            onClick={handleManualRefresh}
+            disabled={isRefreshing || isLoading}
+            title="Muat ulang postingan"
+            className="flex items-center gap-2 rounded-xl border border-white/15 bg-slate-900/80 hover:bg-slate-800 px-4 py-3 text-sm font-semibold text-white transition-all hover:scale-105 active:scale-95 cursor-pointer shadow-lg disabled:opacity-50"
+          >
+            <RefreshCw className={`h-4 w-4 text-emerald-400 ${isRefreshing ? "animate-spin" : ""}`} />
+            <span>Refresh</span>
+          </button>
         </div>
 
+        {/* Modal Buat Postingan */}
         <AnimatePresence>
           {showCreateForm && (
             <motion.div
@@ -261,6 +343,49 @@ export function SocialPageClient({ initialPosts }: SocialPageClientProps) {
           )}
         </AnimatePresence>
 
+        {/* Modal Konfirmasi Hapus Postingan */}
+        <AnimatePresence>
+          {postToDelete && (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 z-[99999] flex items-center justify-center bg-black/80 backdrop-blur-md p-4 overflow-y-auto"
+            >
+              <motion.div
+                initial={{ scale: 0.95, opacity: 0, y: 20 }}
+                animate={{ scale: 1, opacity: 1, y: 0 }}
+                exit={{ scale: 0.95, opacity: 0, y: 20 }}
+                className="relative my-auto w-full max-w-md rounded-3xl bg-slate-900 border border-rose-500/40 p-6 shadow-2xl text-white"
+              >
+                <h3 className="text-lg font-bold text-rose-400 mb-2">Hapus Postingan</h3>
+                <p className="text-sm text-white/70 mb-6">
+                  Apakah Anda yakin ingin menghapus postingan ini? Tindakan ini tidak dapat dibatalkan.
+                </p>
+                <div className="flex gap-3">
+                  <button
+                    type="button"
+                    disabled={isDeleting}
+                    onClick={() => setPostToDelete(null)}
+                    className="flex-1 rounded-xl border border-white/15 bg-white/5 py-2.5 text-sm font-semibold text-white/80 hover:bg-white/10 transition cursor-pointer"
+                  >
+                    Batal
+                  </button>
+                  <button
+                    type="button"
+                    disabled={isDeleting}
+                    onClick={handleDeletePostConfirm}
+                    className="flex-1 flex items-center justify-center gap-2 rounded-xl bg-rose-500 hover:bg-rose-400 py-2.5 text-sm font-semibold text-slate-950 transition cursor-pointer disabled:opacity-50"
+                  >
+                    {isDeleting && <Loader2 className="h-4 w-4 animate-spin" />}
+                    <span>Hapus</span>
+                  </button>
+                </div>
+              </motion.div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
         {isLoading && (
           <div className="flex items-center justify-center gap-2 text-blue-300 text-sm py-8 animate-pulse">
             <Loader2 className="w-5 h-5 animate-spin" />
@@ -276,23 +401,39 @@ export function SocialPageClient({ initialPosts }: SocialPageClientProps) {
             </div>
           )}
 
-          {posts.map((post) => {
+          {currentPosts.map((post) => {
             const author = post.public_accounts;
             const comments = post.comments || [];
             const isExpanded = expandedComments[post.id];
+            const isOwner = post.real_account_id === profile?.id;
+            const canDelete = isOwner || isCreator;
 
             return (
               <article
                 key={post.id}
-                className="rounded-3xl bg-slate-900 border border-white/10 p-5 sm:p-6 shadow-xl"
+                className="rounded-3xl bg-slate-900 border border-white/10 p-5 sm:p-6 shadow-xl relative group"
               >
-                <div className="flex items-start gap-3 mb-4">
+                {canDelete && (
                   <button
                     type="button"
-                    onClick={() => author && setPreviewProfile({
-                      ...author,
-                      avatar_url: author.avatar_url,
-                    })}
+                    onClick={() => setPostToDelete(post)}
+                    title="Hapus Postingan"
+                    className="absolute right-4 top-4 flex h-8 w-8 items-center justify-center rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-400 hover:bg-rose-500 hover:text-white transition-all cursor-pointer opacity-80 group-hover:opacity-100"
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                  </button>
+                )}
+
+                <div className="flex items-start gap-3 mb-4 pr-10">
+                  <button
+                    type="button"
+                    onClick={() =>
+                      author &&
+                      setPreviewProfile({
+                        ...author,
+                        avatar_url: author.avatar_url,
+                      })
+                    }
                     className="relative h-11 w-11 overflow-hidden rounded-full border border-white/20 bg-slate-800 flex items-center justify-center shrink-0 cursor-pointer hover:scale-105 active:scale-95 transition-transform"
                     title="Lihat profil publik"
                   >
@@ -339,13 +480,19 @@ export function SocialPageClient({ initialPosts }: SocialPageClientProps) {
 
                 {post.link_url && (
                   <a
-                    href={post.link_url.startsWith("http") ? post.link_url : `https://${post.link_url}`}
+                    href={
+                      post.link_url.startsWith("http")
+                        ? post.link_url
+                        : `https://${post.link_url}`
+                    }
                     target="_blank"
                     rel="noopener noreferrer"
                     className="flex items-center gap-2 text-xs text-blue-300 hover:text-blue-200 bg-blue-500/10 border border-blue-500/20 rounded-xl px-3.5 py-2.5 mb-3 break-all hover:bg-blue-500/15 transition-colors"
                   >
                     <ExternalLink className="h-3.5 w-3.5 shrink-0" />
-                    <span className="truncate">{post.link_url.replace(/^https?:\/\//, "")}</span>
+                    <span className="truncate">
+                      {post.link_url.replace(/^https?:\/\//, "")}
+                    </span>
                   </a>
                 )}
 
@@ -353,7 +500,10 @@ export function SocialPageClient({ initialPosts }: SocialPageClientProps) {
                   <button
                     type="button"
                     onClick={() =>
-                      setExpandedComments((prev) => ({ ...prev, [post.id]: !prev[post.id] }))
+                      setExpandedComments((prev) => ({
+                        ...prev,
+                        [post.id]: !prev[post.id],
+                      }))
                     }
                     className="flex items-center gap-1.5 text-xs text-white/60 hover:text-white font-medium transition-colors cursor-pointer"
                   >
@@ -368,7 +518,10 @@ export function SocialPageClient({ initialPosts }: SocialPageClientProps) {
                       {comments.map((c: any) => {
                         const cAuthor = c.public_accounts;
                         return (
-                          <div key={c.id} className="flex items-start gap-2.5 bg-white/5 rounded-2xl p-3 border border-white/5">
+                          <div
+                            key={c.id}
+                            className="flex items-start gap-2.5 bg-white/5 rounded-2xl p-3 border border-white/5"
+                          >
                             <button
                               type="button"
                               onClick={() => cAuthor && setPreviewProfile(cAuthor)}
@@ -410,7 +563,10 @@ export function SocialPageClient({ initialPosts }: SocialPageClientProps) {
                           type="text"
                           value={commentInputs[post.id] || ""}
                           onChange={(e) =>
-                            setCommentInputs((prev) => ({ ...prev, [post.id]: e.target.value }))
+                            setCommentInputs((prev) => ({
+                              ...prev,
+                              [post.id]: e.target.value,
+                            }))
                           }
                           onKeyDown={(e) => {
                             if (e.key === "Enter") {
@@ -425,7 +581,10 @@ export function SocialPageClient({ initialPosts }: SocialPageClientProps) {
                         <button
                           type="button"
                           onClick={() => handleCreateComment(post.id)}
-                          disabled={submittingComment[post.id] || !(commentInputs[post.id]?.trim())}
+                          disabled={
+                            submittingComment[post.id] ||
+                            !commentInputs[post.id]?.trim()
+                          }
                           className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
                         >
                           {submittingComment[post.id] ? (
@@ -441,6 +600,53 @@ export function SocialPageClient({ initialPosts }: SocialPageClientProps) {
               </article>
             );
           })}
+
+          {/* Pagination Navigation */}
+          {posts.length > 0 && (
+            <div className="flex items-center justify-center gap-2 pt-6">
+              <button
+                type="button"
+                onClick={() => setCurrentPage(0)}
+                disabled={currentPage === 0}
+                title="Paling Terbaru (Halaman Pertama)"
+                className="flex h-10 w-10 items-center justify-center rounded-xl border border-white/15 bg-slate-900 text-white hover:bg-slate-800 transition disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer shadow"
+              >
+                <ChevronsLeft className="h-4 w-4" />
+              </button>
+              <button
+                type="button"
+                onClick={() => setCurrentPage((p) => Math.max(0, p - 1))}
+                disabled={currentPage === 0}
+                title="Sebelumnya"
+                className="flex h-10 w-10 items-center justify-center rounded-xl border border-white/15 bg-slate-900 text-white hover:bg-slate-800 transition disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer shadow"
+              >
+                <ChevronLeft className="h-4 w-4" />
+              </button>
+
+              <span className="px-4 text-xs font-semibold text-white/70">
+                Hal {currentPage + 1} dari {totalPages} ({posts.length} Post)
+              </span>
+
+              <button
+                type="button"
+                onClick={() => setCurrentPage((p) => Math.min(totalPages - 1, p + 1))}
+                disabled={currentPage >= totalPages - 1}
+                title="Berikutnya"
+                className="flex h-10 w-10 items-center justify-center rounded-xl border border-white/15 bg-slate-900 text-white hover:bg-slate-800 transition disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer shadow"
+              >
+                <ChevronRight className="h-4 w-4" />
+              </button>
+              <button
+                type="button"
+                onClick={() => setCurrentPage(totalPages - 1)}
+                disabled={currentPage >= totalPages - 1}
+                title="Paling Terlama (Halaman Terakhir)"
+                className="flex h-10 w-10 items-center justify-center rounded-xl border border-white/15 bg-slate-900 text-white hover:bg-slate-800 transition disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer shadow"
+              >
+                <ChevronsRight className="h-4 w-4" />
+              </button>
+            </div>
+          )}
         </div>
       </div>
 

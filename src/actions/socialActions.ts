@@ -106,7 +106,6 @@ export async function createSocialPostAction(body: {
 
   const supabase = getSupabaseClient();
   try {
-    // Get public account id for this real account
     const { data: pubData, error: pubErr } = await supabase
       .from("public_accounts")
       .select("id")
@@ -174,5 +173,65 @@ export async function createSocialCommentAction(body: {
     return { success: true };
   } catch (err: any) {
     return { error: err.message || "Gagal mengirim komentar" };
+  }
+}
+
+export async function deleteSocialPostAction(body: {
+  postId: string;
+  realAccountId: string;
+}) {
+  const { postId, realAccountId } = body;
+  if (!postId || !realAccountId) {
+    return { error: "ID Postingan atau Akun tidak valid." };
+  }
+
+  const supabase = getSupabaseClient();
+  try {
+    // Get post details
+    const { data: postData, error: postErr } = await supabase
+      .from("social_posts")
+      .select("*")
+      .eq("id", postId)
+      .limit(1);
+
+    if (postErr || !postData || postData.length === 0) {
+      return { error: "Postingan tidak ditemukan." };
+    }
+
+    const post = postData[0];
+
+    // Get user account details to check if creator
+    const { data: userData, error: userErr } = await supabase
+      .from("user_accounts")
+      .select("*")
+      .eq("id", realAccountId)
+      .limit(1);
+
+    if (userErr || !userData || userData.length === 0) {
+      return { error: "Akun pengguna tidak ditemukan." };
+    }
+
+    const userAcc = userData[0];
+    const isOwner = post.real_account_id === realAccountId;
+    const isCreator =
+      (userAcc.generation && userAcc.generation.trim().toLowerCase() === "creator") ||
+      (userAcc.name && userAcc.name.trim().toLowerCase() === "creator");
+
+    if (!isOwner && !isCreator) {
+      return { error: "Anda tidak memiliki izin untuk menghapus postingan ini." };
+    }
+
+    const { error: delErr } = await supabase
+      .from("social_posts")
+      .delete()
+      .eq("id", postId);
+
+    if (delErr) {
+      return { error: delErr.message || "Gagal menghapus postingan." };
+    }
+
+    return { success: true };
+  } catch (err: any) {
+    return { error: err.message || "Gagal menghapus postingan." };
   }
 }
