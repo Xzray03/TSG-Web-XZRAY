@@ -25,7 +25,7 @@ export function Hero({ content, divisions, foundedYear }: HeroProps) {
   return (
     <section
       ref={containerRef}
-      className="bg-grid relative flex min-h-screen items-center overflow-hidden px-6 pb-20 pt-36 sm:px-10 lg:px-16"
+      className="bg-grid relative flex min-h-screen items-center overflow-hidden px-6 pb-20 pt-[204px] sm:px-10 lg:px-16"
     >
       {/* Mouse-following spotlight watermark text "THE SMART GENERATION" */}
       <div
