@@ -33,7 +33,7 @@ import { LogoModal } from "@/components/layout/LogoModal";
 import { getOrCreateDeviceKey } from "@/lib/deviceKeyManager";
 import { useSessionHeartbeat } from "@/hooks/useSessionHeartbeat";
 import { useScrollLock } from "@/hooks/useScrollLock";
-import { checkAccountAction, processAuthAction, signOutAction } from "@/actions/authActions";
+import { checkAccountAction, checkProfileSyncMetaAction, processAuthAction, signOutAction } from "@/actions/authActions";
 import { getPublicAccountAction } from "@/actions/publicAccountActions";
 import { sessionLogoutAction, sessionRespondAction } from "@/actions/sessionActions";
 import { getGenerationsAction, getTeamMembersAction } from "@/actions/teamActions";
@@ -102,6 +102,7 @@ export function UserProfileBadge() {
     useState<UserProfile | null>(null);
 
   const [authMode, setAuthMode] = useState<"register" | "login">("login");
+  const [accountDataState, setAccountDataState] = useState<any>(null);
   const [storedFaceVectors, setStoredFaceVectors] = useState<Array<number[]>>(
     [],
   );
@@ -158,13 +159,86 @@ export function UserProfileBadge() {
   }, []);
 
   useEffect(() => {
+    async function sha256Client(text: string): Promise<string> {
+      if (!text) return "";
+      try {
+        const encoder = new TextEncoder();
+        const data = encoder.encode(text);
+        const hashBuffer = await window.crypto.subtle.digest("SHA-256", data);
+        const hashArray = Array.from(new Uint8Array(hashBuffer));
+        return hashArray.map((b) => b.toString(16).padStart(2, "0")).join("");
+      } catch {
+        return "";
+      }
+    }
+
     async function restoreAndVerifySession() {
       try {
         const saved = localStorage.getItem("tsg_user_profile");
         if (saved) {
           const parsed = JSON.parse(saved);
           if (parsed && parsed.name) {
+            // Prioritas: pakai cache localStorage langsung agar render instan
             setProfile(parsed);
+            if (parsed.id) {
+              fetchPublicAccountInfo(parsed.id);
+            }
+
+            // Cek Supabase di latar (hash & metadata tanpa download foto utuh)
+            try {
+              const meta: any = await checkProfileSyncMetaAction(parsed.name.trim());
+              if (meta && meta.exists && !meta.error) {
+                const localGen = (parsed.generation || "").trim().toLowerCase();
+                const localEmail = (parsed.email || "").trim().toLowerCase();
+                const localIsMember = Boolean(parsed.isTsgMember);
+                const remoteGen = (meta.generation || "").trim().toLowerCase();
+                const remoteEmail = (meta.email || "").trim().toLowerCase();
+                const remoteIsMember = Boolean(meta.isTsgMember);
+                const remotePhotoHash = meta.photoHash || "";
+                const localPhotoHash = parsed.iconDataUrl ? await sha256Client(parsed.iconDataUrl) : "";
+
+                const isSame =
+                  (parsed.id ? parsed.id === meta.id : true) &&
+                  localGen === remoteGen &&
+                  localEmail === remoteEmail &&
+                  localIsMember === remoteIsMember &&
+                  localPhotoHash === remotePhotoHash;
+
+                if (isSame) {
+                  // Sama: Gunakan localStorage, pastikan ID tersinkron
+                  if (!parsed.id && meta.id) {
+                    const synced = { ...parsed, id: meta.id };
+                    localStorage.setItem("tsg_user_profile", JSON.stringify(synced));
+                    setProfile(synced);
+                    fetchPublicAccountInfo(meta.id);
+                  }
+                  return;
+                }
+
+                // Berbeda: Ambil dari Supabase & perbarui cache di localStorage
+                const data: any = await checkAccountAction(parsed.name.trim());
+                if (data && !data.error && (data.id || data.photo || data.generation || data.email)) {
+                  setProfile((prev) => {
+                    const updated: UserProfile = {
+                      ...prev,
+                      id: data.id || prev.id,
+                      name: data.tsgInfo?.name || prev.name || parsed.name,
+                      generation: data.generation || prev.generation || "",
+                      iconDataUrl: data.photo || prev.iconDataUrl || "",
+                      email: data.email || prev.email || "",
+                      isTsgMember: typeof data.isTsgMember === "boolean" ? data.isTsgMember : prev.isTsgMember,
+                      authMethod: data.authMethod || prev.authMethod,
+                      createdAt: data.createdAt || prev.createdAt,
+                    };
+                    localStorage.setItem("tsg_user_profile", JSON.stringify(updated));
+                    if (updated.id) {
+                      fetchPublicAccountInfo(updated.id);
+                    }
+                    return updated;
+                  });
+                }
+              }
+            } catch {}
           }
         }
       } catch (e) {
@@ -301,6 +375,8 @@ export function UserProfileBadge() {
         throw new Error(data.error || "Gagal memeriksa akun di database.");
       }
 
+      setAccountDataState(data);
+
       // BILA DICENTANG ANGGOTA TSG TAPI TIDAK TERDAFTAR DI SANITY CMS:
       if (isTsgMemberCheckbox && !data.isTsgMember) {
         setSubmittedName(tempName.trim());
@@ -376,16 +452,23 @@ export function UserProfileBadge() {
 
   const handleAuthSuccess = (newProfileData: any) => {
     const targetEmail =
-      newProfileData.email || tsgInfoState?.email || profile.email || "";
+      newProfileData.email || accountDataState?.email || tsgInfoState?.email || profile.email || "";
+
+    const finalPhoto =
+      accountDataState?.photo || newProfileData.iconDataUrl || tsgInfoState?.photo || newProfileData.photo || profile.iconDataUrl || "";
+
+    const finalGen =
+      accountDataState?.generation || newProfileData.generation || tempGen || tsgInfoState?.categoryName || profile.generation || "";
 
     const updatedProfile: UserProfile = {
-      id: newProfileData.id || undefined,
-      name: tempName.trim() || newProfileData.name || "",
-      generation: tempGen || tsgInfoState?.categoryName || newProfileData.generation || profile.generation || "",
-      iconDataUrl: newProfileData.iconDataUrl || tsgInfoState?.photo || newProfileData.photo || profile.iconDataUrl || "",
+      id: newProfileData.id || accountDataState?.id || profile.id,
+      name: tempName.trim() || newProfileData.name || accountDataState?.name || profile.name || "",
+      generation: finalGen,
+      iconDataUrl: finalPhoto,
       email: targetEmail,
-      isTsgMember: isTsgMemberState,
-      authMethod: newProfileData.authMethod,
+      isTsgMember: typeof accountDataState?.isTsgMember === "boolean" ? accountDataState.isTsgMember : (typeof newProfileData.isTsgMember === "boolean" ? newProfileData.isTsgMember : isTsgMemberState),
+      authMethod: newProfileData.authMethod || profile.authMethod,
+      createdAt: newProfileData.createdAt || accountDataState?.createdAt || profile.createdAt,
     };
 
     // JIKA DALAM MODE LOGIN DAN AKUN MEMILIKI EMAIL:
@@ -890,6 +973,7 @@ export function UserProfileBadge() {
         initialName={tempName}
         isTsgMember={isTsgMemberState}
         tsgInfo={tsgInfoState}
+        accountData={accountDataState}
         onClose={() => setIsFaceModalOpen(false)}
         onVerified={handleAuthSuccess}
       />
@@ -901,6 +985,7 @@ export function UserProfileBadge() {
         userName={tempName}
         isTsgMember={isTsgMemberState}
         tsgInfo={tsgInfoState}
+        accountData={accountDataState}
         onClose={() => setIsPasswordModalOpen(false)}
         onSuccess={handlePasswordVerified}
       />

@@ -11,6 +11,7 @@ interface PasswordAuthModalProps {
   userName: string;
   isTsgMember: boolean;
   tsgInfo?: any;
+  accountData?: any;
   onClose: () => void;
   onSuccess: (profileData: any) => void;
 }
@@ -30,6 +31,7 @@ export default function PasswordAuthModal({
   userName,
   isTsgMember,
   tsgInfo,
+  accountData,
   onClose,
   onSuccess,
 }: PasswordAuthModalProps) {
@@ -113,12 +115,14 @@ export default function PasswordAuthModal({
       }
 
       const profile = {
+        id: accountData?.id || undefined,
         name: userName,
-        isTsgMember: isTsgMember,
-        generation: tsgInfo?.categoryName || "",
-        email: tsgInfo?.email || "",
+        isTsgMember: typeof accountData?.isTsgMember === "boolean" ? accountData.isTsgMember : isTsgMember,
+        generation: accountData?.generation || tsgInfo?.categoryName || "",
+        email: accountData?.email || tsgInfo?.email || "",
         authMethod: "password",
-        iconDataUrl: existingCustomPhoto || tsgInfo?.photo || "",
+        iconDataUrl: accountData?.photo || tsgInfo?.photo || existingCustomPhoto || "",
+        createdAt: accountData?.createdAt || undefined,
       };
 
       localStorage.setItem("tsg_user_profile", JSON.stringify(profile));

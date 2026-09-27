@@ -21,6 +21,44 @@ function sha256(text: string): string {
   return crypto.createHash("sha256").update(text).digest("hex");
 }
 
+export async function checkProfileSyncMetaAction(name: string) {
+  if (!name || typeof name !== "string") {
+    return { error: "Nama wajib diisi" };
+  }
+
+  const serverSupabase = getSupabaseClient();
+  const cleanName = name.trim();
+
+  try {
+    const { data, error } = await serverSupabase
+      .from("user_accounts")
+      .select("id, name, generation, email, is_tsg_member, photo, updated_at, created_at")
+      .ilike("name", cleanName)
+      .limit(1);
+
+    if (error || !data || data.length === 0) {
+      return { exists: false };
+    }
+
+    const acc = data[0];
+    const photoHash = acc.photo ? sha256(acc.photo) : "";
+
+    return {
+      exists: true,
+      id: acc.id,
+      name: acc.name,
+      generation: acc.generation || "",
+      email: acc.email || "",
+      isTsgMember: Boolean(acc.is_tsg_member),
+      photoHash,
+      createdAt: acc.created_at,
+      updatedAt: acc.updated_at,
+    };
+  } catch (err: any) {
+    return { error: err.message || "Gagal memeriksa metadata akun" };
+  }
+}
+
 export async function checkAccountAction(name: string) {
   if (!name || typeof name !== "string") {
     return { error: "Nama wajib diisi" };
@@ -232,11 +270,11 @@ export async function processAuthAction(body: {
       if (newName && typeof newName === "string" && newName.trim()) {
         updates.name = newName.trim();
       }
-      if (generation !== undefined) {
-        updates.generation = typeof generation === "string" ? generation.trim() : null;
+      if (generation !== undefined && typeof generation === "string" && generation.trim() !== "") {
+        updates.generation = generation.trim();
       }
-      if (photo !== undefined) {
-        updates.photo = typeof photo === "string" ? photo.trim() : null;
+      if (photo !== undefined && typeof photo === "string" && photo.trim() !== "") {
+        updates.photo = photo.trim();
       }
 
       const { error: updateErr } = await serverSupabase
