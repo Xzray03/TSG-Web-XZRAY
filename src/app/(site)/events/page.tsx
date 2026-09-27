@@ -3,7 +3,7 @@ import { CalendarClock } from "lucide-react";
 import { getEvents } from "@/sanity/queries";
 import { EventsPageClient } from "@/components/events/EventsPageClient";
 
-export const revalidate = 0;
+export const revalidate = false;
 
 export const metadata: Metadata = {
   title: "Event & Agenda",

@@ -1,9 +1,9 @@
+"use server";
+
 import { createClient } from "@supabase/supabase-js";
-import { client } from "@/sanity/client";
+import { client as sanityClient } from "@/sanity/client";
 import { urlForImage } from "@/sanity/image";
-import { verifyApiRequest } from "@/lib/api-guard";
 import crypto from "crypto";
-import { NextResponse } from "next/server";
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || "";
 const supabaseServiceKey =
@@ -36,17 +36,9 @@ async function initSupabaseStorageAndDb(serverSupabase: any) {
   }
 }
 
-export async function GET(request: Request) {
-  const guard = await verifyApiRequest(request, { requireAuth: false });
-  if (!guard.authorized) {
-    return guard.response;
-  }
-
-  const { searchParams } = new URL(request.url);
-  const name = searchParams.get("name");
-
-  if (!name) {
-    return NextResponse.json({ error: "Nama wajib diisi" }, { status: 400 });
+export async function checkAccountAction(name: string) {
+  if (!name || typeof name !== "string") {
+    return { error: "Nama wajib diisi" };
   }
 
   const serverSupabase = getSupabaseClient();
@@ -67,7 +59,7 @@ export async function GET(request: Request) {
     let tsgInfo = null;
 
     try {
-      const members = await client.fetch(sanityQuery, { name: `*${cleanName}*` });
+      const members = await sanityClient.fetch(sanityQuery, { name: `*${cleanName}*` });
       if (members && members.length > 0) {
         isTsgMember = true;
         const m = members[0];
@@ -91,14 +83,14 @@ export async function GET(request: Request) {
       .limit(1);
 
     if (dbError && dbError.code === "42P01") {
-      return NextResponse.json({
+      return {
         exists: false,
         authMethod: null,
         isTsgMember,
         tsgInfo,
         faceVectors: null,
         loginPreferences: { password: true, face: true, email: false },
-      });
+      };
     }
 
     if (existingAccounts && existingAccounts.length > 0) {
@@ -117,7 +109,7 @@ export async function GET(request: Request) {
         ? { ...tsgInfo, categoryName: generation || tsgInfo.categoryName, photo: photo || tsgInfo.photo }
         : { name: acc.name, categoryName: generation, photo: photo };
 
-      return NextResponse.json({
+      return {
         exists: true,
         id: acc.id,
         authMethod,
@@ -134,10 +126,10 @@ export async function GET(request: Request) {
           face: hasFace,
           email: false,
         },
-      });
+      };
     }
 
-    return NextResponse.json({
+    return {
       exists: false,
       authMethod: null,
       isTsgMember,
@@ -146,39 +138,49 @@ export async function GET(request: Request) {
       photo: tsgInfo?.photo || "",
       faceVectors: null,
       loginPreferences: { password: true, face: true, email: false },
-    });
+    };
   } catch (error: any) {
-    return NextResponse.json(
-      { error: error.message || "Gagal memproses data" },
-      { status: 500 }
-    );
+    return { error: error.message || "Gagal memproses data" };
   }
 }
 
-export async function POST(request: Request) {
-  // SET REQUIREAUTH FALSE AGAR TIDAK MUNCUL MISSING TOKEN DI LOCAL MANAGEMENT MODAL
-  const guard = await verifyApiRequest(request, { requireAuth: false });
-  if (!guard.authorized) {
-    return guard.response;
+export async function processAuthAction(body: {
+  action: string;
+  name: string;
+  faceVector?: number[];
+  mouthOpenSnapshot?: string;
+  password?: string;
+  newPassword?: string;
+  oldPassword?: string;
+  email?: string;
+  targetEmail?: string;
+  token?: string;
+  isConfirmationVerified?: boolean;
+  preferences?: any;
+  isTsgMember?: boolean;
+  is_tsg_member?: boolean;
+  tsgInfo?: any;
+  generation?: string;
+  photo?: string;
+  newName?: string;
+  newFaceVector?: number[];
+  newMouthOpenSnapshot?: string;
+}) {
+  const { action, name, faceVector, mouthOpenSnapshot, password, preferences } = body;
+
+  if (!name) {
+    return { error: "Nama wajib diisi" };
   }
 
+  const cleanName = name.trim();
+  const serverSupabase = getSupabaseClient();
+  await initSupabaseStorageAndDb(serverSupabase);
+  const nowIso = new Date().toISOString();
+
   try {
-    const body = await request.json();
-    const { action, name, faceVector, mouthOpenSnapshot, password, preferences } = body;
-
-    if (!name) {
-      return NextResponse.json({ error: "Nama wajib diisi" }, { status: 400 });
-    }
-
-    const cleanName = name.trim();
-    const serverSupabase = getSupabaseClient();
-    await initSupabaseStorageAndDb(serverSupabase);
-    const nowIso = new Date().toISOString();
-
-    // ACTION: REGISTER FACE
     if (action === "register_face") {
       if (!faceVector || !Array.isArray(faceVector)) {
-        return NextResponse.json({ error: "Data vektor wajah wajib diisi" }, { status: 400 });
+        return { error: "Data vektor wajah wajib diisi" };
       }
 
       let snapshotUrl = "";
@@ -213,7 +215,6 @@ export async function POST(request: Request) {
 
       if (existing && existing.length > 0) {
         const acc = existing[0];
-        // ponytail: Sanity categoryName/photo override only if column empty; full sync controlled by update_profile.
         const { error: updateErr } = await serverSupabase
           .from("user_accounts")
           .update({
@@ -229,7 +230,7 @@ export async function POST(request: Request) {
           .eq("id", acc.id);
 
         if (updateErr) {
-          return NextResponse.json({ error: updateErr.message || "Gagal memperbarui data wajah." }, { status: 500 });
+          return { error: updateErr.message || "Gagal memperbarui data wajah." };
         }
       } else {
         const { error: insertErr } = await serverSupabase
@@ -249,14 +250,13 @@ export async function POST(request: Request) {
           });
 
         if (insertErr) {
-          return NextResponse.json({ error: insertErr.message || "Gagal menyimpan pendaftaran wajah." }, { status: 500 });
+          return { error: insertErr.message || "Gagal menyimpan pendaftaran wajah." };
         }
       }
 
-      return NextResponse.json({ success: true, message: "Pendaftaran wajah berhasil disimpan." });
+      return { success: true, message: "Pendaftaran wajah berhasil disimpan." };
     }
 
-    // ACTION: UPDATE PROFILE (Real user profile: name, generation, photo in Supabase)
     if (action === "update_profile") {
       const { newName, generation, photo } = body;
 
@@ -267,13 +267,11 @@ export async function POST(request: Request) {
         .limit(1);
 
       if (fetchErr || !existing || existing.length === 0) {
-        return NextResponse.json({ error: "Akun tidak ditemukan di database Supabase" }, { status: 404 });
+        return { error: "Akun tidak ditemukan di database Supabase" };
       }
 
       const acc = existing[0];
-      const updates: any = {
-        updated_at: nowIso,
-      };
+      const updates: any = { updated_at: nowIso };
 
       if (newName && typeof newName === "string" && newName.trim()) {
         updates.name = newName.trim();
@@ -291,10 +289,10 @@ export async function POST(request: Request) {
         .eq("id", acc.id);
 
       if (updateErr) {
-        return NextResponse.json({ error: updateErr.message || "Gagal memperbarui profil di Supabase." }, { status: 500 });
+        return { error: updateErr.message || "Gagal memperbarui profil di Supabase." };
       }
 
-      return NextResponse.json({
+      return {
         success: true,
         message: "Profil berhasil diperbarui di Supabase.",
         profile: {
@@ -303,13 +301,12 @@ export async function POST(request: Request) {
           generation: updates.generation !== undefined ? updates.generation : acc.generation,
           photo: updates.photo !== undefined ? updates.photo : acc.photo,
         },
-      });
+      };
     }
 
-    // ACTION: UPDATE LOGIN PREFERENCES (TERSIMPAN DI SUPABASE)
     if (action === "update_login_preferences") {
       if (!preferences || typeof preferences !== "object") {
-        return NextResponse.json({ error: "Preferensi login tidak valid." }, { status: 400 });
+        return { error: "Preferensi login tidak valid." };
       }
 
       const { data: existing, error: fetchErr } = await serverSupabase
@@ -319,20 +316,16 @@ export async function POST(request: Request) {
         .limit(1);
 
       if (fetchErr || !existing || existing.length === 0) {
-        return NextResponse.json({ error: "Akun tidak ditemukan" }, { status: 404 });
+        return { error: "Akun tidak ditemukan" };
       }
 
       const acc = existing[0];
       const hasPass = Boolean(acc.password_hash);
       const hasFc = Boolean(acc.face_vectors && acc.face_vectors.length > 0);
 
-      // Validasi: Jika password dan wajah keduanya ada, minimal 1 harus di-centang (true)
       if (hasPass && hasFc) {
         if (!preferences.password && !preferences.face) {
-          return NextResponse.json(
-            { error: "Minimal harus mencentang salah satu antara verifikasi password atau verifikasi wajah." },
-            { status: 400 }
-          );
+          return { error: "Minimal harus mencentang salah satu antara verifikasi password atau verifikasi wajah." };
         }
       }
 
@@ -351,17 +344,16 @@ export async function POST(request: Request) {
         .eq("id", acc.id);
 
       if (updateErr) {
-        return NextResponse.json({ error: updateErr.message || "Gagal memperbarui preferensi login." }, { status: 500 });
+        return { error: updateErr.message || "Gagal memperbarui preferensi login." };
       }
 
-      return NextResponse.json({ success: true, message: "Preferensi login berhasil disimpan ke database Supabase." });
+      return { success: true, message: "Preferensi login berhasil disimpan ke database Supabase." };
     }
 
-    // ACTION: ADD PASSWORD
     if (action === "add_password") {
       const { newPassword } = body;
       if (!newPassword) {
-        return NextResponse.json({ error: "Password baru wajib diisi" }, { status: 400 });
+        return { error: "Password baru wajib diisi" };
       }
 
       const hasMinLength = newPassword.length >= 12;
@@ -371,10 +363,7 @@ export async function POST(request: Request) {
       const hasSymbol = /[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(newPassword);
 
       if (!hasMinLength || !hasUpperCase || !hasLowerCase || !hasNumber || !hasSymbol) {
-        return NextResponse.json(
-          { error: "Password tidak memenuhi kriteria keamanan (Min 12 Karakter, A-Z, a-z, 0-9, Simbol)." },
-          { status: 400 }
-        );
+        return { error: "Password tidak memenuhi kriteria keamanan (Min 12 Karakter, A-Z, a-z, 0-9, Simbol)." };
       }
 
       const { data: existing, error: fetchErr } = await serverSupabase
@@ -384,7 +373,7 @@ export async function POST(request: Request) {
         .limit(1);
 
       if (fetchErr || !existing || existing.length === 0) {
-        return NextResponse.json({ error: "Akun tidak ditemukan" }, { status: 404 });
+        return { error: "Akun tidak ditemukan" };
       }
 
       const acc = existing[0];
@@ -405,14 +394,13 @@ export async function POST(request: Request) {
         })
         .eq("id", acc.id);
 
-      return NextResponse.json({ success: true, message: "Password berhasil ditambahkan." });
+      return { success: true, message: "Password berhasil ditambahkan." };
     }
 
-    // ACTION: ADD EMAIL
     if (action === "add_email") {
       const { email: newEmail } = body;
       if (!newEmail || !newEmail.includes("@")) {
-        return NextResponse.json({ error: "Email tidak valid." }, { status: 400 });
+        return { error: "Email tidak valid." };
       }
 
       const { data: existing, error: fetchErr } = await serverSupabase
@@ -422,7 +410,7 @@ export async function POST(request: Request) {
         .limit(1);
 
       if (fetchErr || !existing || existing.length === 0) {
-        return NextResponse.json({ error: "Akun tidak ditemukan" }, { status: 404 });
+        return { error: "Akun tidak ditemukan" };
       }
 
       const acc = existing[0];
@@ -434,14 +422,13 @@ export async function POST(request: Request) {
         })
         .eq("id", acc.id);
 
-      return NextResponse.json({ success: true, message: "Email berhasil ditambahkan." });
+      return { success: true, message: "Email berhasil ditambahkan." };
     }
 
-    // ACTION: CHANGE EMAIL
     if (action === "change_email") {
-      const { password: currentPassword, newEmail } = body;
+      const { password: currentPassword, email: newEmail } = body;
       if (!currentPassword || !newEmail || !newEmail.includes("@")) {
-        return NextResponse.json({ error: "Password saat ini dan email baru wajib diisi." }, { status: 400 });
+        return { error: "Password saat ini dan email baru wajib diisi." };
       }
 
       const { data: existing, error: fetchErr } = await serverSupabase
@@ -451,14 +438,14 @@ export async function POST(request: Request) {
         .limit(1);
 
       if (fetchErr || !existing || existing.length === 0) {
-        return NextResponse.json({ error: "Akun tidak ditemukan" }, { status: 404 });
+        return { error: "Akun tidak ditemukan" };
       }
 
       const acc = existing[0];
       if (acc.password_hash) {
         const inputHash = sha256(currentPassword);
         if (inputHash !== acc.password_hash) {
-          return NextResponse.json({ error: "Password saat ini tidak sesuai." }, { status: 401 });
+          return { error: "Password saat ini tidak sesuai." };
         }
       }
 
@@ -470,14 +457,13 @@ export async function POST(request: Request) {
         })
         .eq("id", acc.id);
 
-      return NextResponse.json({ success: true, message: "Email berhasil diperbarui." });
+      return { success: true, message: "Email berhasil diperbarui." };
     }
 
-    // ACTION: SEND CONFIRMATION
     if (action === "send_confirmation" || action === "send_otp") {
       const { targetEmail } = body;
       if (!targetEmail || !targetEmail.includes("@")) {
-        return NextResponse.json({ error: "Email tujuan tidak valid." }, { status: 400 });
+        return { error: "Email tujuan tidak valid." };
       }
 
       const cleanEmail = targetEmail.trim().toLowerCase();
@@ -505,23 +491,20 @@ export async function POST(request: Request) {
 
       const { error: otpErr } = await serverSupabase.auth.signInWithOtp({
         email: cleanEmail,
-        options: {
-          shouldCreateUser: true,
-        },
+        options: { shouldCreateUser: true },
       });
 
       if (otpErr) {
-        return NextResponse.json({ error: otpErr.message || "Gagal mengirimkan tautan konfirmasi." }, { status: 500 });
+        return { error: otpErr.message || "Gagal mengirimkan tautan konfirmasi." };
       }
 
-      return NextResponse.json({ success: true, message: "Tautan konfirmasi berhasil dikirimkan." });
+      return { success: true, message: "Tautan konfirmasi berhasil dikirimkan." };
     }
 
-    // ACTION: VERIFY OTP
     if (action === "verify_otp") {
       const { targetEmail, token } = body;
       if (!targetEmail || !token) {
-        return NextResponse.json({ error: "Email dan kode OTP wajib diisi." }, { status: 400 });
+        return { error: "Email dan kode OTP wajib diisi." };
       }
 
       const cleanToken = token.trim();
@@ -551,7 +534,7 @@ export async function POST(request: Request) {
               })
               .eq("id", acc.id);
 
-            return NextResponse.json({ success: true, message: "Kode OTP berhasil diverifikasi." });
+            return { success: true, message: "Kode OTP berhasil diverifikasi." };
           }
         }
       } catch (e) {}
@@ -563,17 +546,16 @@ export async function POST(request: Request) {
       });
 
       if (!verifyErr) {
-        return NextResponse.json({ success: true, message: "Kode OTP berhasil diverifikasi." });
+        return { success: true, message: "Kode OTP berhasil diverifikasi." };
       }
 
-      return NextResponse.json({ error: "Kode OTP tidak valid atau telah kadaluarsa." }, { status: 400 });
+      return { error: "Kode OTP tidak valid atau telah kadaluarsa." };
     }
 
-    // ACTION: RESET PASSWORD
     if (action === "reset_password") {
       const { oldPassword, newPassword, isConfirmationVerified } = body;
       if (!oldPassword || !newPassword) {
-        return NextResponse.json({ error: "Password lama dan password baru wajib diisi" }, { status: 400 });
+        return { error: "Password lama dan password baru wajib diisi" };
       }
 
       const { data: existing, error: fetchErr } = await serverSupabase
@@ -583,27 +565,27 @@ export async function POST(request: Request) {
         .limit(1);
 
       if (fetchErr || !existing || existing.length === 0) {
-        return NextResponse.json({ error: "Akun tidak ditemukan" }, { status: 404 });
+        return { error: "Akun tidak ditemukan" };
       }
 
       const acc = existing[0];
       if (!acc.password_hash) {
-        return NextResponse.json({ error: "Akun belum memiliki password." }, { status: 400 });
+        return { error: "Akun belum memiliki password." };
       }
 
       const inputOldHash = sha256(oldPassword);
       if (inputOldHash !== acc.password_hash) {
-        return NextResponse.json({ error: "Password lama tidak sesuai." }, { status: 401 });
+        return { error: "Password lama tidak sesuai." };
       }
 
       const registeredEmail = acc.email || "";
 
       if (registeredEmail && registeredEmail.includes("@") && !isConfirmationVerified) {
-        return NextResponse.json({
+        return {
           requireConfirmation: true,
           email: registeredEmail,
           message: "Akun terhubung dengan email. Konfirmasi tautan email diperlukan.",
-        });
+        };
       }
 
       const hasMinLength = newPassword.length >= 12;
@@ -613,10 +595,7 @@ export async function POST(request: Request) {
       const hasSymbol = /[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(newPassword);
 
       if (!hasMinLength || !hasUpperCase || !hasLowerCase || !hasNumber || !hasSymbol) {
-        return NextResponse.json(
-          { error: "Password baru tidak memenuhi kriteria (Min 12 Karakter, A-Z, a-z, 0-9, Simbol)." },
-          { status: 400 }
-        );
+        return { error: "Password baru tidak memenuhi kriteria (Min 12 Karakter, A-Z, a-z, 0-9, Simbol)." };
       }
 
       const newPasswordHash = sha256(newPassword);
@@ -628,13 +607,12 @@ export async function POST(request: Request) {
         })
         .eq("id", acc.id);
 
-      return NextResponse.json({ success: true, message: "Password berhasil diperbarui." });
+      return { success: true, message: "Password berhasil diperbarui." };
     }
 
-    // ACTION: ADD FACE
     if (action === "add_face") {
       if (!faceVector || !Array.isArray(faceVector)) {
-        return NextResponse.json({ error: "Data vektor wajah wajib diisi" }, { status: 400 });
+        return { error: "Data vektor wajah wajib diisi" };
       }
 
       const { data: existing, error: fetchErr } = await serverSupabase
@@ -644,7 +622,7 @@ export async function POST(request: Request) {
         .limit(1);
 
       if (fetchErr || !existing || existing.length === 0) {
-        return NextResponse.json({ error: "Akun tidak ditemukan" }, { status: 404 });
+        return { error: "Akun tidak ditemukan" };
       }
 
       const acc = existing[0];
@@ -693,12 +671,11 @@ export async function POST(request: Request) {
         })
         .eq("id", acc.id);
 
-      return NextResponse.json({ success: true, message: "Verifikasi wajah berhasil ditambahkan." });
+      return { success: true, message: "Verifikasi wajah berhasil ditambahkan." };
     }
 
-    // ACTION: LOGIN FACE UPDATE
     if (action === "login_face_update") {
-      const { newFaceVector, newMouthOpenSnapshot } = body;
+      const { newFaceVector, newMouthOpenSnapshot } = body as any;
 
       const { data: existing, error: fetchErr } = await serverSupabase
         .from("user_accounts")
@@ -707,7 +684,7 @@ export async function POST(request: Request) {
         .limit(1);
 
       if (fetchErr || !existing || existing.length === 0) {
-        return NextResponse.json({ error: "Akun tidak ditemukan" }, { status: 404 });
+        return { error: "Akun tidak ditemukan" };
       }
 
       const acc = existing[0];
@@ -751,13 +728,12 @@ export async function POST(request: Request) {
         })
         .eq("id", acc.id);
 
-      return NextResponse.json({ success: true });
+      return { success: true };
     }
 
-    // ACTION: REGISTER PASSWORD
     if (action === "register_password") {
       if (!password) {
-        return NextResponse.json({ error: "Password wajib diisi" }, { status: 400 });
+        return { error: "Password wajib diisi" };
       }
 
       const hasMinLength = password.length >= 12;
@@ -767,10 +743,7 @@ export async function POST(request: Request) {
       const hasSymbol = /[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(password);
 
       if (!hasMinLength || !hasUpperCase || !hasLowerCase || !hasNumber || !hasSymbol) {
-        return NextResponse.json(
-          { error: "Password tidak memenuhi kriteria keamanan (Min 12 Karakter, A-Z, a-z, 0-9, Simbol)." },
-          { status: 400 }
-        );
+        return { error: "Password tidak memenuhi kriteria keamanan (Min 12 Karakter, A-Z, a-z, 0-9, Simbol)." };
       }
 
       const { data: existing, error: fetchErr } = await serverSupabase
@@ -780,7 +753,7 @@ export async function POST(request: Request) {
         .limit(1);
 
       if (fetchErr) {
-        return NextResponse.json({ error: fetchErr.message || "Gagal memeriksa data akun" }, { status: 500 });
+        return { error: fetchErr.message || "Gagal memeriksa data akun" };
       }
 
       const passwordHash = sha256(password);
@@ -788,7 +761,7 @@ export async function POST(request: Request) {
       if (existing && existing.length > 0) {
         const acc = existing[0];
         if (acc.password_hash) {
-          return NextResponse.json({ error: "Akun ini sudah memiliki password. Silakan login." }, { status: 400 });
+          return { error: "Akun ini sudah memiliki password. Silakan login." };
         }
 
         const hasFace = Boolean(acc.face_vectors && acc.face_vectors.length > 0);
@@ -811,7 +784,7 @@ export async function POST(request: Request) {
           .eq("id", acc.id);
 
         if (updateErr) {
-          return NextResponse.json({ error: updateErr.message || "Gagal mendaftarkan password." }, { status: 500 });
+          return { error: updateErr.message || "Gagal mendaftarkan password." };
         }
       } else {
         const { error: insertErr } = await serverSupabase
@@ -820,7 +793,7 @@ export async function POST(request: Request) {
             name: cleanName,
             password_hash: passwordHash,
             auth_method: "password",
-            is_tsg_member: body.isTsgMember || body.is_tsg_member || false,
+            is_tsg_member: body.isTsgMember || false,
             email: body.tsgInfo?.email || null,
             generation: body.tsgInfo?.categoryName || body.generation || null,
             photo: body.tsgInfo?.photo || body.photo || null,
@@ -830,17 +803,16 @@ export async function POST(request: Request) {
           });
 
         if (insertErr) {
-          return NextResponse.json({ error: insertErr.message || "Gagal membuat akun baru." }, { status: 500 });
+          return { error: insertErr.message || "Gagal membuat akun baru." };
         }
       }
 
-      return NextResponse.json({ success: true, message: "Akun berhasil didaftarkan." });
+      return { success: true, message: "Akun berhasil didaftarkan." };
     }
 
-    // ACTION: LOGIN WITH PASSWORD
     if (action === "login_password") {
       if (!password) {
-        return NextResponse.json({ error: "Password wajib diisi" }, { status: 400 });
+        return { error: "Password wajib diisi" };
       }
 
       const { data: existing, error: fetchErr } = await serverSupabase
@@ -850,17 +822,17 @@ export async function POST(request: Request) {
         .limit(1);
 
       if (fetchErr || !existing || existing.length === 0) {
-        return NextResponse.json({ error: "Akun tidak ditemukan" }, { status: 404 });
+        return { error: "Akun tidak ditemukan" };
       }
 
       const acc = existing[0];
       if (!acc.password_hash) {
-        return NextResponse.json({ error: "Akun ini belum memiliki password." }, { status: 400 });
+        return { error: "Akun ini belum memiliki password." };
       }
 
       const inputHash = sha256(password);
       if (inputHash !== acc.password_hash) {
-        return NextResponse.json({ error: "Password salah. Silakan coba lagi." }, { status: 401 });
+        return { error: "Password salah. Silakan coba lagi." };
       }
 
       await serverSupabase
@@ -868,10 +840,9 @@ export async function POST(request: Request) {
         .update({ updated_at: nowIso })
         .eq("id", acc.id);
 
-      return NextResponse.json({ success: true });
+      return { success: true };
     }
 
-    // ACTION: DELETE ACCOUNT
     if (action === "delete_account") {
       const { data: existing, error: fetchErr } = await serverSupabase
         .from("user_accounts")
@@ -880,7 +851,7 @@ export async function POST(request: Request) {
         .limit(1);
 
       if (fetchErr || !existing || existing.length === 0) {
-        return NextResponse.json({ error: "Akun tidak ditemukan" }, { status: 404 });
+        return { error: "Akun tidak ditemukan" };
       }
 
       const acc = existing[0];
@@ -906,35 +877,24 @@ export async function POST(request: Request) {
         throw new Error(delErr.message || "Gagal menghapus data akun dari database.");
       }
 
-      return NextResponse.json({ success: true, message: "Akun berhasil dihapus secara permanen." });
+      return { success: true, message: "Akun berhasil dihapus secara permanen." };
     }
 
-    return NextResponse.json({ error: "Aksi tidak valid" }, { status: 400 });
+    return { error: "Aksi tidak valid" };
   } catch (error: any) {
-    return NextResponse.json(
-      { error: error.message || "Gagal memproses data" },
-      { status: 500 }
-    );
+    return { error: error.message || "Gagal memproses data" };
   }
 }
 
-export async function DELETE(request: Request) {
-  const guard = await verifyApiRequest(request, { requireAuth: false });
-  if (!guard.authorized) {
-    return guard.response;
+export async function deleteAccountAction(name: string) {
+  if (!name) {
+    return { error: "Nama wajib diisi" };
   }
 
+  const cleanName = name.trim();
+  const serverSupabase = getSupabaseClient();
+
   try {
-    const { searchParams } = new URL(request.url);
-    const name = searchParams.get("name");
-
-    if (!name) {
-      return NextResponse.json({ error: "Nama wajib diisi" }, { status: 400 });
-    }
-
-    const cleanName = name.trim();
-    const serverSupabase = getSupabaseClient();
-
     const { data: existing, error: fetchErr } = await serverSupabase
       .from("user_accounts")
       .select("*")
@@ -942,7 +902,7 @@ export async function DELETE(request: Request) {
       .limit(1);
 
     if (fetchErr || !existing || existing.length === 0) {
-      return NextResponse.json({ error: "Akun tidak ditemukan" }, { status: 404 });
+      return { error: "Akun tidak ditemukan" };
     }
 
     const acc = existing[0];
@@ -968,11 +928,40 @@ export async function DELETE(request: Request) {
       throw new Error(delErr.message || "Gagal menghapus akun.");
     }
 
-    return NextResponse.json({ success: true });
+    return { success: true };
   } catch (error: any) {
-    return NextResponse.json(
-      { error: error.message || "Gagal menghapus akun" },
-      { status: 500 }
+    return { error: error.message || "Gagal menghapus akun" };
+  }
+}
+
+export async function signOutAction() {
+  try {
+    const serverSupabase = getSupabaseClient();
+    await serverSupabase.auth.signOut();
+    return { success: true };
+  } catch (error: any) {
+    return { success: true };
+  }
+}
+
+export async function checkEmailConfirmedAction(email: string) {
+  if (!email || !email.includes("@")) {
+    return { confirmed: false };
+  }
+
+  try {
+    const serverSupabase = getSupabaseClient();
+    const { data: listUsers } = await serverSupabase.auth.admin.listUsers();
+    const cleanEmail = email.trim().toLowerCase();
+    const foundUser = listUsers?.users?.find(
+      (u: any) => u.email?.toLowerCase() === cleanEmail
     );
+
+    if (foundUser && foundUser.email_confirmed_at) {
+      return { confirmed: true };
+    }
+    return { confirmed: false };
+  } catch (error) {
+    return { confirmed: false };
   }
 }

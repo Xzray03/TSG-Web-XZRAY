@@ -3,7 +3,7 @@ import { Mail } from "lucide-react";
 import { getSiteSettings } from "@/sanity/queries";
 import { ContactDetail } from "@/components/contact/ContactDetail";
 
-export const revalidate = 0;
+export const revalidate = false;
 
 export const metadata: Metadata = {
   title: "Kontak",

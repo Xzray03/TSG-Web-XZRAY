@@ -5,7 +5,7 @@ import { getCachedAchievementsFiltered } from "@/sanity/serverCache";
 import { VisionMission } from "@/components/about/VisionMission";
 import { AboutAchievements } from "@/components/about/AboutAchievements";
 
-export const revalidate = 0;
+export const revalidate = false;
 
 export const metadata: Metadata = {
   title: "Tentang Kami",

@@ -13,8 +13,8 @@ import { UserProfileBadge } from "@/components/layout/UserProfileBadge";
 import { getDivisions, getSiteSettings } from "@/sanity/queries";
 import "@/app/globals.css";
 
-// Selalu ambil data terbaru dari Sanity, jangan pakai cache halaman.
-export const revalidate = 0;
+// Cache halaman On-Demand ISR, diperbarui otomatis via Webhook (Sanity & Supabase).
+export const revalidate = false;
 
 import { SITE_URL } from "@/data/url_production";
 

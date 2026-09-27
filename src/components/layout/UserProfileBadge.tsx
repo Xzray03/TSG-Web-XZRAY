@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
+import Image from "next/image";
 import { motion, AnimatePresence } from "framer-motion";
 import { FaUser } from "react-icons/fa";
 import {
@@ -29,10 +30,13 @@ import ManagePublicAccountModal from "@/components/auth/ManagePublicAccountModal
 import { PublicProfilePreviewModal } from "@/components/auth/PublicProfilePreviewModal";
 import { LoginVerifURLModal } from "@/components/auth/LoginVerifURLModal";
 import { LogoModal } from "@/components/layout/LogoModal";
-import { supabase } from "@/lib/supabase";
 import { getOrCreateDeviceKey } from "@/lib/deviceKeyManager";
 import { useSessionHeartbeat } from "@/hooks/useSessionHeartbeat";
 import { useScrollLock } from "@/hooks/useScrollLock";
+import { checkAccountAction, processAuthAction, signOutAction } from "@/actions/authActions";
+import { getPublicAccountAction } from "@/actions/publicAccountActions";
+import { sessionLogoutAction, sessionRespondAction } from "@/actions/sessionActions";
+import { getGenerationsAction, getTeamMembersAction } from "@/actions/teamActions";
 
 interface UserProfile {
   id?: string;
@@ -139,24 +143,13 @@ export function UserProfileBadge() {
   useEffect(() => {
     async function fetchData() {
       try {
-        const [genRes, memberRes] = await Promise.all([
-          fetch("/api/generations", {
-            headers: { "x-tsg-client-verify": "true" },
-          }),
-          fetch("/api/team-members", {
-            headers: { "x-tsg-client-verify": "true" },
-          }),
+        const [genData, memberData] = await Promise.all([
+          getGenerationsAction(),
+          getTeamMembersAction(),
         ]);
 
-        if (genRes.ok) {
-          const genData = await genRes.json();
-          if (Array.isArray(genData)) setGenerations(genData);
-        }
-
-        if (memberRes.ok) {
-          const memberData = await memberRes.json();
-          if (Array.isArray(memberData)) setTeamMembers(memberData);
-        }
+        if (Array.isArray(genData)) setGenerations(genData);
+        if (Array.isArray(memberData)) setTeamMembers(memberData);
       } catch (e) {}
     }
     fetchData();
@@ -213,16 +206,9 @@ export function UserProfileBadge() {
     setErrorMsg("");
 
     try {
-      const res = await fetch(
-        `/api/auth?action=check&name=${encodeURIComponent(profile.name.trim())}`,
-        {
-          headers: { "x-tsg-client-verify": "true" },
-        },
-      );
+      const data: any = await checkAccountAction(profile.name.trim());
 
-      const data = await parseJsonResponse(res);
-
-      if (res.ok) {
+      if (data && !data.error) {
         const freshPhoto = data.photo || data.tsgInfo?.photo || profile.iconDataUrl;
         const updatedProfile: UserProfile = {
           ...profile,
@@ -256,12 +242,9 @@ export function UserProfileBadge() {
     if (!realAccountId) return;
     setIsLoadingPublicAccount(true);
     try {
-      const res = await fetch(`/api/public-accounts?realAccountId=${realAccountId}`, {
-        headers: { "x-tsg-client-verify": "true" },
-      });
-      if (res.ok) {
-        const data = await res.json();
-        setPublicAccountInfo(data.publicAccount || null);
+      const data: any = await getPublicAccountAction(realAccountId);
+      if (data && data.publicAccount) {
+        setPublicAccountInfo(data.publicAccount);
       }
     } catch (e) {
     } finally {
@@ -273,15 +256,8 @@ export function UserProfileBadge() {
     if (profile.id) {
       fetchPublicAccountInfo(profile.id);
     } else if (profile.name) {
-      // try to find id & sync Supabase data if missing
-      fetch(
-        `/api/auth?action=check&name=${encodeURIComponent(profile.name.trim())}`,
-        {
-          headers: { "x-tsg-client-verify": "true" },
-        },
-      )
-        .then((res) => res.json())
-        .then((data) => {
+      checkAccountAction(profile.name.trim())
+        .then((data: any) => {
           if (data && (data.id || data.photo || data.generation)) {
             const updated = {
               ...profile,
@@ -315,16 +291,9 @@ export function UserProfileBadge() {
     setIsVerifying(true);
 
     try {
-      const res = await fetch(
-        `/api/auth?action=check&name=${encodeURIComponent(tempName.trim())}`,
-        {
-          headers: { "x-tsg-client-verify": "true" },
-        },
-      );
+      const data: any = await checkAccountAction(tempName.trim());
 
-      const data = await parseJsonResponse(res);
-
-      if (!res.ok) {
+      if (data && data.error) {
         throw new Error(data.error || "Gagal memeriksa akun di database.");
       }
 
@@ -439,18 +408,11 @@ export function UserProfileBadge() {
     localStorage.setItem("tsg_user_profile", JSON.stringify(finalProfile));
 
     if (finalProfile.name) {
-      fetch("/api/auth", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "x-tsg-client-verify": "true",
-        },
-        body: JSON.stringify({
-          action: "update_profile",
-          name: finalProfile.name,
-          generation: finalProfile.generation,
-          photo: finalProfile.iconDataUrl,
-        }),
+      processAuthAction({
+        action: "update_profile",
+        name: finalProfile.name,
+        generation: finalProfile.generation,
+        photo: finalProfile.iconDataUrl,
       }).catch(() => {});
     }
 
@@ -467,15 +429,11 @@ export function UserProfileBadge() {
     try {
       const deviceKey = getOrCreateDeviceKey();
       if (profile.email) {
-        await fetch("/api/session/logout", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ userId: profile.email, deviceKey }),
-        });
+        await sessionLogoutAction(profile.email, deviceKey);
       }
     } catch (e) {}
 
-    await supabase.auth.signOut();
+    await signOutAction();
     localStorage.removeItem("tsg_user_profile");
     setProfile({
       name: "",
@@ -520,9 +478,11 @@ export function UserProfileBadge() {
         >
           <div className="relative h-8 w-8 overflow-hidden rounded-full border border-white/20 bg-slate-800 flex items-center justify-center shrink-0">
             {profile.iconDataUrl ? (
-              <img
+              <Image
                 src={profile.iconDataUrl}
                 alt={profile.name || "User"}
+                width={32}
+                height={32}
                 className="h-full w-full object-cover object-top aspect-square"
                 crossOrigin="anonymous"
               />
@@ -591,9 +551,11 @@ export function UserProfileBadge() {
                   className="relative h-14 w-14 overflow-hidden rounded-full border border-white/20 bg-slate-800 flex items-center justify-center shrink-0 transition-transform hover:scale-105 active:scale-95 cursor-pointer ring-2 ring-emerald-500/30"
                 >
                   {profile.iconDataUrl ? (
-                    <img
+                    <Image
                       src={profile.iconDataUrl}
                       alt={profile.name}
+                      width={56}
+                      height={56}
                       className="h-full w-full object-cover object-top aspect-square"
                       crossOrigin="anonymous"
                     />
@@ -1173,17 +1135,12 @@ export function UserProfileBadge() {
           requestData={pendingLoginRequest}
           onRespond={async (decision) => {
             try {
-              await fetch("/api/session/respond", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                  requestId: pendingLoginRequest.id,
-                  decision,
-                  userId: profile.email,
-                  requesterDeviceInfo:
-                    pendingLoginRequest.requester_device_info,
-                }),
-              });
+              await sessionRespondAction(
+                pendingLoginRequest.id,
+                decision,
+                profile.email || "",
+                pendingLoginRequest.requester_device_info
+              );
             } catch (e) {}
             setPendingLoginRequest(null);
           }}
@@ -1203,19 +1160,11 @@ export function UserProfileBadge() {
           setProfile(updated);
           localStorage.setItem("tsg_user_profile", JSON.stringify(updated));
           if (profile.name) {
-            fetch("/api/auth", {
-              method: "POST",
-              headers: {
-                "Content-Type": "application/json",
-                "x-tsg-client-verify": "true",
-              },
-              body: JSON.stringify({
-                action: "update_profile",
-                name: profile.name,
-                photo: newPhotoUrl,
-              }),
+            processAuthAction({
+              action: "update_profile",
+              name: profile.name,
+              photo: newPhotoUrl,
             })
-              .then((res) => res.json())
               .then(() => {
                 if (profile.id) {
                   fetchPublicAccountInfo(profile.id);

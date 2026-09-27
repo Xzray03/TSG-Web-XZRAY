@@ -24,6 +24,7 @@ import {
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { supabase } from "@/lib/supabase";
+import { checkAccountAction, processAuthAction, checkEmailConfirmedAction } from "@/actions/authActions";
 
 interface ManageAccountModalProps {
   isOpen: boolean;
@@ -108,14 +109,8 @@ export default function ManageAccountModal({
     if (!userName.trim()) return;
     setIsLoadingLoadingStatus(true);
     try {
-      const res = await fetch(
-        `/api/auth?action=check&name=${encodeURIComponent(userName.trim())}`,
-        {
-          headers: { "x-tsg-client-verify": "true" },
-        }
-      );
-      const data = await parseJsonResponse(res);
-      if (res.ok && data.exists) {
+      const data: any = await checkAccountAction(userName.trim());
+      if (data && !data.error && data.exists) {
         setHasPassword(!!data.hasPassword);
         setHasFace(!!data.hasFace);
         setRegisteredEmail(data.email || "");
@@ -188,8 +183,8 @@ export default function ManageAccountModal({
 
     const interval = setInterval(async () => {
       try {
-        const { data } = await supabase.auth.getSession();
-        if (data?.session) {
+        const result: any = await checkEmailConfirmedAction(registeredEmail);
+        if (result.confirmed) {
           await finalizePasswordResetAfterConfirmation();
         }
       } catch (e) {}
@@ -215,21 +210,13 @@ export default function ManageAccountModal({
 
     setIsSubmitting(true);
     try {
-      const res = await fetch("/api/auth", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "x-tsg-client-verify": "true",
-        },
-        body: JSON.stringify({
-          action: "add_password",
-          name: userName,
-          newPassword,
-        }),
+      const data: any = await processAuthAction({
+        action: "add_password",
+        name: userName,
+        newPassword,
       });
 
-      const data = await parseJsonResponse(res);
-      if (!res.ok || !data.success) {
+      if (!data.success) {
         throw new Error(data.error || "Gagal menambahkan password.");
       }
 
@@ -252,21 +239,13 @@ export default function ManageAccountModal({
     setConfSuccessMsg("");
 
     try {
-      const res = await fetch("/api/auth", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "x-tsg-client-verify": "true",
-        },
-        body: JSON.stringify({
-          action: "send_confirmation",
-          name: userName,
-          targetEmail: emailAddr,
-        }),
+      const data: any = await processAuthAction({
+        action: "send_confirmation",
+        name: userName,
+        targetEmail: emailAddr,
       });
 
-      const data = await parseJsonResponse(res);
-      if (!res.ok || !data.success) {
+      if (!data.success) {
         throw new Error(data.error || "Gagal mengirimkan tautan konfirmasi.");
       }
 
@@ -281,23 +260,15 @@ export default function ManageAccountModal({
 
   const finalizePasswordResetAfterConfirmation = async () => {
     try {
-      const resReset = await fetch("/api/auth", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "x-tsg-client-verify": "true",
-        },
-        body: JSON.stringify({
-          action: "reset_password",
-          name: userName,
-          oldPassword,
-          newPassword,
-          isConfirmationVerified: true,
-        }),
+      const dataReset: any = await processAuthAction({
+        action: "reset_password",
+        name: userName,
+        oldPassword,
+        newPassword,
+        isConfirmationVerified: true,
       });
 
-      const dataReset = await resReset.json();
-      if (!resReset.ok || !dataReset.success) {
+      if (!dataReset.success) {
         throw new Error(dataReset.error || "Gagal memperbarui password.");
       }
 
@@ -342,24 +313,15 @@ export default function ManageAccountModal({
 
     setIsSubmitting(true);
     try {
-      const res = await fetch("/api/auth", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "x-tsg-client-verify": "true",
-        },
-        body: JSON.stringify({
-          action: "reset_password",
-          name: userName,
-          oldPassword,
-          newPassword,
-          isConfirmationVerified: false,
-        }),
+      const data: any = await processAuthAction({
+        action: "reset_password",
+        name: userName,
+        oldPassword,
+        newPassword,
+        isConfirmationVerified: false,
       });
 
-      const data = await parseJsonResponse(res);
-
-      if (!res.ok) {
+      if (data.error) {
         throw new Error(data.error || "Gagal memproses ganti password.");
       }
 
@@ -397,21 +359,13 @@ export default function ManageAccountModal({
 
     setIsSubmitting(true);
     try {
-      const res = await fetch("/api/auth", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "x-tsg-client-verify": "true",
-        },
-        body: JSON.stringify({
-          action: "add_email",
-          name: userName,
-          email: newEmailInput,
-        }),
+      const data: any = await processAuthAction({
+        action: "add_email",
+        name: userName,
+        email: newEmailInput,
       });
 
-      const data = await parseJsonResponse(res);
-      if (!res.ok || !data.success) {
+      if (!data.success) {
         throw new Error(data.error || "Gagal menambahkan email.");
       }
 
@@ -444,22 +398,14 @@ export default function ManageAccountModal({
 
     setIsSubmitting(true);
     try {
-      const res = await fetch("/api/auth", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "x-tsg-client-verify": "true",
-        },
-        body: JSON.stringify({
-          action: "change_email",
-          name: userName,
-          password: currentPassForEmail,
-          newEmail: newEmailInput,
-        }),
+      const data: any = await processAuthAction({
+        action: "change_email",
+        name: userName,
+        password: currentPassForEmail,
+        email: newEmailInput,
       });
 
-      const data = await parseJsonResponse(res);
-      if (!res.ok || !data.success) {
+      if (!data.success) {
         throw new Error(data.error || "Gagal memperbarui email.");
       }
 
@@ -481,7 +427,6 @@ export default function ManageAccountModal({
     setPrefsErrorMsg("");
     setPrefsSuccessMsg("");
 
-    // Validasi aturan: Jika password dan wajah kedua-duanya terdaftar (ada), minimal harus ada 1 antara password atau wajah yang di-centang.
     if (hasPassword && hasFace) {
       if (!loginPrefPassword && !loginPrefFace) {
         setPrefsErrorMsg("Minimal harus mencentang salah satu antara verifikasi password atau verifikasi wajah.");
@@ -491,25 +436,17 @@ export default function ManageAccountModal({
 
     setIsSavingPrefs(true);
     try {
-      const res = await fetch("/api/auth", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "x-tsg-client-verify": "true",
+      const data: any = await processAuthAction({
+        action: "update_login_preferences",
+        name: userName,
+        preferences: {
+          password: loginPrefPassword,
+          face: loginPrefFace,
+          email: loginPrefEmail,
         },
-        body: JSON.stringify({
-          action: "update_login_preferences",
-          name: userName,
-          preferences: {
-            password: loginPrefPassword,
-            face: loginPrefFace,
-            email: loginPrefEmail,
-          },
-        }),
       });
 
-      const data = await parseJsonResponse(res);
-      if (!res.ok || !data.success) {
+      if (!data.success) {
         throw new Error(data.error || "Gagal menyimpan preferensi metode login.");
       }
 

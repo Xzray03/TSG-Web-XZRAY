@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from "react";
+import Image from "next/image";
 import {
   X,
   Globe,
@@ -14,6 +15,12 @@ import { FaUser } from "react-icons/fa";
 import { LogoModal } from "@/components/layout/LogoModal";
 import { FaLinkedin, FaGithub, FaYoutube, FaTiktok, FaInstagram, FaFacebook, FaWhatsapp, FaLine } from "react-icons/fa";
 import { useScrollLock } from "@/hooks/useScrollLock";
+import { checkAccountAction } from "@/actions/authActions";
+import {
+  checkNicknameAction,
+  getPublicAccountAction,
+  savePublicAccountAction,
+} from "@/actions/publicAccountActions";
 
 interface ManagePublicAccountModalProps {
   isOpen: boolean;
@@ -75,11 +82,8 @@ export default function ManagePublicAccountModal({
         let currentId = realAccountId;
         if (!currentId) {
           try {
-            const checkRes = await fetch(`/api/auth?action=check&name=${encodeURIComponent(realAccountName.trim())}`, {
-              headers: { "x-tsg-client-verify": "true" },
-            });
-            const checkData = await checkRes.json();
-            if (checkRes.ok && checkData.id) {
+            const checkData: any = await checkAccountAction(realAccountName.trim());
+            if (checkData && checkData.id) {
               currentId = checkData.id;
               setResolvedId(checkData.id);
             }
@@ -126,11 +130,8 @@ export default function ManagePublicAccountModal({
     setIsLoading(true);
     setErrorMsg("");
     try {
-      const res = await fetch(`/api/public-accounts?realAccountId=${targetId}`, {
-        headers: { "x-tsg-client-verify": "true" },
-      });
-      const data = await res.json();
-      if (res.ok && data.publicAccount) {
+      const data: any = await getPublicAccountAction(targetId);
+      if (data && data.publicAccount) {
         const acc = data.publicAccount;
         setNickname(acc.nickname || "");
         setName(acc.name || realAccountName || "");
@@ -183,15 +184,8 @@ export default function ManagePublicAccountModal({
     const timeoutId = setTimeout(async () => {
       try {
         const currentId = resolvedId || realAccountId;
-        const queryUrl = currentId
-          ? `/api/public-accounts?checkNickname=${encodeURIComponent(cleanNick)}&excludeAccountId=${encodeURIComponent(currentId)}`
-          : `/api/public-accounts?checkNickname=${encodeURIComponent(cleanNick)}`;
-
-        const res = await fetch(queryUrl, {
-          headers: { "x-tsg-client-verify": "true" },
-        });
-        const data = await res.json();
-        if (res.ok) {
+        const data: any = await checkNicknameAction(cleanNick, currentId || undefined);
+        if (data && !data.error) {
           if (data.available) {
             setNicknameStatus("available");
           } else {
@@ -230,27 +224,19 @@ export default function ManagePublicAccountModal({
 
     setIsSaving(true);
     try {
-      const res = await fetch("/api/public-accounts", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "x-tsg-client-verify": "true",
-        },
-        body: JSON.stringify({
-          realAccountId: currentId,
-          nickname: nickname.trim(),
-          name: name.trim(),
-          age: age ? parseInt(age, 10) : null,
-          bio: bio.trim(),
-          avatarUrl: avatarUrl.trim(),
-          showTsgMember: showTsgMember && isTsgMember,
-          socialMedia: socials,
-          website: website.trim(),
-        }),
+      const data: any = await savePublicAccountAction({
+        realAccountId: currentId,
+        nickname: nickname.trim(),
+        name: name.trim(),
+        age: age ? parseInt(age, 10) : null,
+        bio: bio.trim(),
+        avatarUrl: avatarUrl.trim(),
+        showTsgMember: showTsgMember && isTsgMember,
+        socialMedia: socials,
+        website: website.trim(),
       });
 
-      const data = await res.json();
-      if (!res.ok || !data.success) {
+      if (!data.success) {
         throw new Error(data.error || "Gagal menyimpan akun publik.");
       }
 
@@ -288,9 +274,11 @@ export default function ManagePublicAccountModal({
               className="relative h-14 w-14 overflow-hidden rounded-full border border-emerald-500/30 bg-slate-800 flex items-center justify-center shrink-0 transition-transform hover:scale-105 active:scale-95 cursor-pointer ring-2 ring-emerald-500/30 shadow-lg"
             >
               {avatarUrl ? (
-                <img
+                <Image
                   src={avatarUrl}
                   alt={name || "Avatar"}
+                  width={56}
+                  height={56}
                   className="h-full w-full object-cover object-top aspect-square"
                   crossOrigin="anonymous"
                 />

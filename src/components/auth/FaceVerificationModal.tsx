@@ -12,6 +12,7 @@ import {
   RefreshCw,
   X,
 } from "lucide-react";
+import { processAuthAction } from "@/actions/authActions";
 
 interface FaceVerificationModalProps {
   isOpen: boolean;
@@ -389,24 +390,16 @@ export default function FaceVerificationModal({
 
                     if (mode === "register") {
                       // PENDAFTARAN PERTAMA KALI: Simpan 4 vektor + foto buka mulut
-                      const res = await fetch("/api/auth", {
-                        method: "POST",
-                        headers: {
-                          "Content-Type": "application/json",
-                          "x-tsg-client-verify": "true",
-                        },
-                        body: JSON.stringify({
-                          action: "register_face",
-                          name: initialName,
-                          faceVector: fourVectors,
-                          mouthOpenSnapshot: snapDataToSave,
-                          isTsgMember: isTsgMember,
-                          tsgInfo: tsgInfo,
-                        }),
+                      const data: any = await processAuthAction({
+                        action: "register_face",
+                        name: initialName || "",
+                        faceVector: fourVectors as any,
+                        mouthOpenSnapshot: snapDataToSave,
+                        isTsgMember: isTsgMember,
+                        tsgInfo: tsgInfo,
                       });
 
-                      const data = await parseJsonResponse(res);
-                      if (!res.ok || !data.success) {
+                      if (!data.success) {
                         throw new Error(data.error || "Gagal menyimpan pendaftaran wajah.");
                       }
                     } else {
@@ -461,18 +454,11 @@ export default function FaceVerificationModal({
                       }
 
                       // Update histori (menambah histori login terbaru & foto buka mulut, FIFO max 3, namun patokan utama tetap tidak berubah)
-                      await fetch("/api/auth", {
-                        method: "POST",
-                        headers: {
-                          "Content-Type": "application/json",
-                          "x-tsg-client-verify": "true",
-                        },
-                        body: JSON.stringify({
-                          action: "login_face_update",
-                          name: initialName,
-                          newFaceVector: fourVectors,
-                          newMouthOpenSnapshot: snapDataToSave,
-                        }),
+                      await processAuthAction({
+                        action: "login_face_update",
+                        name: initialName || "",
+                        newFaceVector: fourVectors as any,
+                        newMouthOpenSnapshot: snapDataToSave,
                       });
                     }
 

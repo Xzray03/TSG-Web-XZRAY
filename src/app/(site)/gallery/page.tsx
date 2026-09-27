@@ -6,7 +6,7 @@ import { GalleryLightboxWrapper } from "@/components/gallery/GalleryLightboxWrap
 import { UniformShowcase3D } from "@/components/gallery/UniformShowcase3D";
 import { cn } from "@/lib/utils";
 
-export const revalidate = 0;
+export const revalidate = false;
 
 export const metadata: Metadata = {
   title: "Galeri",

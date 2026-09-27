@@ -13,6 +13,7 @@ import {
   CanvasCaptcha,
   CanvasCaptchaRef,
 } from "@/components/auth/CanvasCaptcha";
+import { processAuthAction } from "@/actions/authActions";
 
 interface DeleteAccountModalProps {
   isOpen: boolean;
@@ -80,21 +81,12 @@ export default function DeleteAccountModal({
     setIsLoading(true);
 
     try {
-      const res = await fetch(`/api/auth`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "x-tsg-client-verify": "true",
-        },
-        body: JSON.stringify({
-          action: "delete_account",
-          name: userName,
-        }),
+      const data: any = await processAuthAction({
+        action: "delete_account",
+        name: userName,
       });
 
-      const data = await parseJsonResponse(res);
-
-      if (!res.ok || !data.success) {
+      if (!data.success) {
         throw new Error(data.error || "Gagal menghapus akun secara permanen.");
       }
 

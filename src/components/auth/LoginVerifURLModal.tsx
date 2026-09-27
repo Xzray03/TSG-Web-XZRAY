@@ -4,6 +4,7 @@ import React, { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Mail, Check, X, AlertCircle, Loader2, Send, ExternalLink } from "lucide-react";
 import { supabase } from "@/lib/supabase";
+import { processAuthAction, checkEmailConfirmedAction } from "@/actions/authActions";
 
 interface LoginConfirmationModalProps {
   isOpen: boolean;
@@ -54,21 +55,13 @@ export function LoginVerifURLModal({
     setSuccessMsg("");
 
     try {
-      const res = await fetch("/api/auth", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "x-tsg-client-verify": "true",
-        },
-        body: JSON.stringify({
-          action: "send_confirmation",
-          name: userName,
-          targetEmail: email,
-        }),
+      const data: any = await processAuthAction({
+        action: "send_confirmation",
+        name: userName,
+        targetEmail: email,
       });
 
-      const data = await parseJsonResponse(res);
-      if (!res.ok || !data.success) {
+      if (!data.success) {
         throw new Error(data.error || "Gagal mengirimkan tautan konfirmasi (ConfirmationURL) ke email.");
       }
 
@@ -89,7 +82,7 @@ export function LoginVerifURLModal({
     }
   }, [isOpen]);
 
-  // Listen for ConfirmationURL magic link authentication or session confirmation automatically
+  // Listen for ConfirmationURL magic link authentication or session confirmation automatically (server-routed check)
   useEffect(() => {
     if (!isOpen) return;
 
@@ -101,8 +94,8 @@ export function LoginVerifURLModal({
 
     const interval = setInterval(async () => {
       try {
-        const { data } = await supabase.auth.getSession();
-        if (data?.session) {
+        const result: any = await checkEmailConfirmedAction(email);
+        if (result.confirmed) {
           onVerified();
         }
       } catch (e) {}
@@ -112,7 +105,7 @@ export function LoginVerifURLModal({
       authListener.subscription.unsubscribe();
       clearInterval(interval);
     };
-  }, [isOpen]);
+  }, [isOpen, email, onVerified]);
 
   useEffect(() => {
     let timer: any;
@@ -128,8 +121,8 @@ export function LoginVerifURLModal({
     setIsChecking(true);
     setErrorMsg("");
     try {
-      const { data } = await supabase.auth.getSession();
-      if (data?.session) {
+      const result: any = await checkEmailConfirmedAction(email);
+      if (result.confirmed) {
         onVerified();
       } else {
         setErrorMsg("Tautan konfirmasi belum diklik atau sesi belum terkonfirmasi di peramban ini.");

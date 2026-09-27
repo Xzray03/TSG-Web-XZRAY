@@ -2,6 +2,7 @@
 
 import React, { useEffect } from "react";
 import { getOrCreateDeviceKey } from "@/lib/deviceKeyManager";
+import { sessionHeartbeatAction } from "@/actions/sessionActions";
 
 export function useSessionHeartbeat(userId: string | null, onPendingLogin?: (requestData: any) => void) {
   useEffect(() => {
@@ -12,12 +13,7 @@ export function useSessionHeartbeat(userId: string | null, onPendingLogin?: (req
     // Kirim heartbeat setiap 10 menit (atau 30 detik untuk demo responsif)
     const interval = setInterval(async () => {
       try {
-        const res = await fetch("/api/session/heartbeat", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ userId, deviceKey })
-        });
-        const data = await res.json();
+        const data: any = await sessionHeartbeatAction(userId, deviceKey);
         if (data.pendingRequest && onPendingLogin) {
           onPendingLogin(data.pendingRequest);
         }

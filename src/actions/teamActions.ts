@@ -1,23 +1,48 @@
-import { NextResponse } from "next/server";
-import { client } from "@/sanity/client";
+"use server";
+
+import { client as sanityClient } from "@/sanity/client";
+import { getTeamMembers } from "@/sanity/queries";
 import { urlForImage } from "@/sanity/image";
-import { verifyApiRequest } from "@/lib/api-guard";
 import { createClient } from "@supabase/supabase-js";
-import fs from "fs";
-import path from "path";
 
-export async function GET(request: Request) {
-  const guard = await verifyApiRequest(request, { requireAuth: false });
-  if (!guard.authorized) {
-    return guard.response;
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || "";
+const supabaseServiceKey =
+  process.env.SUPABASE_SERVICE_ROLE_KEY ||
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ||
+  "";
+
+function getSupabaseClient() {
+  return createClient(supabaseUrl, supabaseServiceKey, {
+    auth: { persistSession: false, autoRefreshToken: false },
+  });
+}
+
+export async function getGenerationsAction(): Promise<string[]> {
+  try {
+    const categories = await sanityClient.fetch(`*[_type == "teamCategory"] | order(order asc) { name, slug }`);
+    const generations = categories
+      .map((cat: any) => cat.slug?.current || cat.name)
+      .filter(Boolean);
+    return generations;
+  } catch (error) {
+    console.error("Error fetching generations:", error);
+    return [];
   }
+}
 
-  const { searchParams } = new URL(request.url);
-  const name = searchParams.get("name");
-  const category = searchParams.get("category");
+export async function getTeamMembersAction() {
+  try {
+    const members = await getTeamMembers();
+    return members;
+  } catch (error) {
+    console.error("Error fetching team members:", error);
+    return [];
+  }
+}
 
+export async function verifyTeamMemberAction(name: string, category?: string) {
   if (!name) {
-    return NextResponse.json({ error: "Nama wajib diisi" }, { status: 400 });
+    return { error: "Nama wajib diisi" };
   }
 
   try {
@@ -29,13 +54,10 @@ export async function GET(request: Request) {
       email
     }`;
 
-    const members = await client.fetch(query, { name: `*${name}*` });
+    const members = await sanityClient.fetch(query, { name: `*${name}*` });
 
     if (!members || members.length === 0) {
-      return NextResponse.json(
-        { error: "Anggota tim tidak ditemukan di Sanity CMS" },
-        { status: 404 }
-      );
+      return { error: "Anggota tim tidak ditemukan di Sanity CMS" };
     }
 
     let matchedMember = members[0];
@@ -48,7 +70,6 @@ export async function GET(request: Request) {
       if (found) matchedMember = found;
     }
 
-    // Proxy foto Sanity agar melalui server API jika di mobile (menghindari CORS)
     const rawPhotoUrl = matchedMember.photo
       ? urlForImage(matchedMember.photo)
           .width(400)
@@ -65,29 +86,26 @@ export async function GET(request: Request) {
       email: matchedMember.email || "",
     };
 
-    return NextResponse.json({ success: true, member: formattedMember });
+    return { success: true, member: formattedMember };
   } catch (error: any) {
-    return NextResponse.json(
-      { error: error.message || "Gagal mengambil data dari Sanity" },
-      { status: 500 }
-    );
+    return { error: error.message || "Gagal mengambil data dari Sanity" };
   }
 }
 
-export async function POST(request: Request) {
-  const guard = await verifyApiRequest(request, { requireAuth: false });
-  if (!guard.authorized) {
-    return guard.response;
+export async function postTeamSnapshotAction(body: {
+  name: string;
+  category?: string;
+  blinkSnapshot?: string;
+  snapshots?: Array<{ label: string; data: string }>;
+  memberId?: string;
+}) {
+  const { name, category, blinkSnapshot, snapshots, memberId } = body;
+
+  if (!name) {
+    return { error: "Nama wajib diisi" };
   }
 
   try {
-    const body = await request.json();
-    const { name, category, blinkSnapshot, snapshots, memberId } = body;
-
-    if (!name) {
-      return NextResponse.json({ error: "Nama wajib diisi" }, { status: 400 });
-    }
-
     const query = `*[_type == "teamMember" && lower(name) match lower($name)] {
       _id,
       name,
@@ -96,13 +114,10 @@ export async function POST(request: Request) {
       email
     }`;
 
-    const members = await client.fetch(query, { name: `*${name}*` });
+    const members = await sanityClient.fetch(query, { name: `*${name}*` });
 
     if (!members || members.length === 0) {
-      return NextResponse.json(
-        { error: "Anggota tim tidak ditemukan di Sanity CMS" },
-        { status: 404 }
-      );
+      return { error: "Anggota tim tidak ditemukan di Sanity CMS" };
     }
 
     let matchedMember = members[0];
@@ -121,22 +136,12 @@ export async function POST(request: Request) {
 
     const passwordPlaceholder = `TSG_Secure_${matchedMember._id || "Verified"}!2026`;
 
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || "";
-    const supabaseServiceKey =
-      process.env.SUPABASE_SERVICE_ROLE_KEY ||
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ||
-      "";
-
     if (supabaseUrl && supabaseServiceKey) {
-      const serverSupabase = createClient(supabaseUrl, supabaseServiceKey, {
-        auth: { persistSession: false, autoRefreshToken: false },
-      });
+      const serverSupabase = getSupabaseClient();
 
       try {
         const { data: buckets } = await serverSupabase.storage.listBuckets();
-        const bucketExists = buckets?.some(
-          (b) => b.name === "face-snapshots"
-        );
+        const bucketExists = buckets?.some((b: any) => b.name === "face-snapshots");
 
         if (!bucketExists) {
           await serverSupabase.storage.createBucket("face-snapshots", {
@@ -154,9 +159,7 @@ export async function POST(request: Request) {
         const seconds = pad(now.getSeconds());
         const timestampStr = `${day}-${month}-${year}-${hours}-${minutes}-${seconds}`;
 
-        const sanitizedName = matchedMember.name
-          .toLowerCase()
-          .replace(/[^a-z0-9]/g, "_");
+        const sanitizedName = matchedMember.name.toLowerCase().replace(/[^a-z0-9]/g, "_");
         const mId = memberId || matchedMember._id || "unknown";
 
         if (Array.isArray(snapshots) && snapshots.length > 0) {
@@ -195,10 +198,9 @@ export async function POST(request: Request) {
             });
         }
 
-        const { data: listUsers } =
-          await serverSupabase.auth.admin.listUsers();
+        const { data: listUsers } = await serverSupabase.auth.admin.listUsers();
         const existingUser = listUsers?.users?.find(
-          (u) => u.email === memberEmailClean
+          (u: any) => u.email === memberEmailClean
         );
 
         const metadata: any = {
@@ -221,11 +223,8 @@ export async function POST(request: Request) {
       } catch (syncErr) {}
     }
 
-    return NextResponse.json({ success: true });
+    return { success: true };
   } catch (error: any) {
-    return NextResponse.json(
-      { error: error.message || "Gagal memproses snapshot" },
-      { status: 500 }
-    );
+    return { error: error.message || "Gagal memproses snapshot" };
   }
 }

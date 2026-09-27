@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Image from "next/image";
 import { Globe } from "lucide-react";
 import { Tooltip } from "@/components/ui/Tooltip";
 import { PublicProfilePreviewModal } from "@/components/auth/PublicProfilePreviewModal";
@@ -31,9 +32,11 @@ export function TeamMemberCardPublicButton({ member }: TeamMemberCardPublicButto
             className="flex h-8 w-8 items-center justify-center rounded-full overflow-hidden border border-white/20 bg-slate-900/80 text-white backdrop-blur-md shadow-lg transition-transform hover:scale-110 active:scale-95 cursor-pointer"
           >
             {hasAvatar ? (
-              <img
+              <Image
                 src={avatarUrl}
                 alt={nickname}
+                width={32}
+                height={32}
                 className="h-full w-full object-cover object-top aspect-square"
                 crossOrigin="anonymous"
               />

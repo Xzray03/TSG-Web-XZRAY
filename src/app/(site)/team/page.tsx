@@ -5,7 +5,7 @@ import { getCachedTeamFiltered } from "@/sanity/serverCache";
 import { TeamMemberCard } from "@/components/team/TeamMemberCard";
 import { cn } from "@/lib/utils";
 
-export const revalidate = 0;
+export const revalidate = false;
 
 export const metadata: Metadata = {
   title: "Tim Kami",

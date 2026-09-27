@@ -3,6 +3,7 @@
 import React, { useState, useRef, useEffect } from "react";
 import { Lock, KeyRound, Check, X, AlertCircle, Loader2, ShieldCheck, Eye, EyeOff } from "lucide-react";
 import { CanvasCaptcha, CanvasCaptchaRef } from "@/components/auth/CanvasCaptcha";
+import { processAuthAction } from "@/actions/authActions";
 
 interface PasswordAuthModalProps {
   isOpen: boolean;
@@ -87,27 +88,15 @@ export default function PasswordAuthModal({
     setIsLoading(true);
 
     try {
-      const endpoint = "/api/auth";
-      const body = {
+      const data: any = await processAuthAction({
         action: mode === "register" ? "register_password" : "login_password",
         name: userName,
         password: password,
         isTsgMember: isTsgMember,
         tsgInfo: tsgInfo,
-      };
-
-      const res = await fetch(endpoint, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "x-tsg-client-verify": "true",
-        },
-        body: JSON.stringify(body),
       });
 
-      const data = await parseJsonResponse(res);
-
-      if (!res.ok || !data.success) {
+      if (!data.success) {
         throw new Error(data.error || "Gagal memproses autentikasi password.");
       }
 

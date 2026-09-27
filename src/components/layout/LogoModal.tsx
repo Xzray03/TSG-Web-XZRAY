@@ -1,9 +1,11 @@
 "use client";
 
 import React, { useState, useRef } from "react";
+import Image from "next/image";
 import { motion, AnimatePresence } from "framer-motion";
 import { X, Camera, Upload, Globe, Check, Loader2 } from "lucide-react";
 import { ProfilePhotoCropModal } from "@/components/layout/ProfilePhotoCropModal";
+import { checkAccountAction } from "@/actions/authActions";
 
 interface LogoModalProps {
   isOpen?: boolean;
@@ -59,11 +61,8 @@ export function LogoModal({
     let photoUrl = fetchedSanityPhoto || sanityPhotoUrl;
     if (!photoUrl && alt) {
       try {
-        const res = await fetch(`/api/auth?action=check&name=${encodeURIComponent(alt.trim())}`, {
-          headers: { "x-tsg-client-verify": "true" },
-        });
-        const data = await res.json();
-        if (res.ok && data.tsgInfo?.photo) {
+        const data: any = await checkAccountAction(alt.trim());
+        if (data && data.tsgInfo?.photo) {
           photoUrl = data.tsgInfo.photo;
           setFetchedSanityPhoto(data.tsgInfo.photo);
         }
@@ -115,10 +114,12 @@ export function LogoModal({
 
           <div className="relative flex h-[55vh] w-[75vw] max-w-xl items-center justify-center overflow-hidden rounded-2xl bg-slate-900/40 border border-white/10 p-2">
             {logoUrl ? (
-              <img
+              <Image
                 src={logoUrl}
                 alt={altText}
-                className="max-h-full max-w-full object-contain rounded-xl"
+                width={500}
+                height={500}
+                className="max-h-full max-w-full object-contain rounded-xl w-auto h-auto"
                 crossOrigin="anonymous"
               />
             ) : (

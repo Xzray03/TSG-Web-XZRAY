@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState } from "react";
+import Image from "next/image";
 import {
   X,
   Globe,
@@ -76,9 +77,11 @@ export function PublicProfilePreviewModal({
               }`}
             >
               {displayAvatar ? (
-                <img
+                <Image
                   src={displayAvatar}
                   alt={publicAccount.name || publicAccount.nickname}
+                  width={96}
+                  height={96}
                   className="h-full w-full object-cover object-top aspect-square"
                   crossOrigin="anonymous"
                 />

@@ -2,6 +2,16 @@ import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
   allowedDevOrigins: ["*.trycloudflare.com"],
+  experimental: {
+    serverActions: {
+      allowedOrigins: [
+        "localhost:3000",
+        "localhost:3333",
+        "thesmartgeneration.vercel.app",
+        "*.trycloudflare.com",
+      ],
+    },
+  },
   images: {
     remotePatterns: [
       {

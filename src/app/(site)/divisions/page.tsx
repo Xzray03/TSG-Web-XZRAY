@@ -3,7 +3,7 @@ import { Layers } from "lucide-react";
 import { getDivisions } from "@/sanity/queries";
 import { DivisionDetailSection } from "@/components/divisions/DivisionDetailSection";
 
-export const revalidate = 0;
+export const revalidate = false;
 
 export const metadata: Metadata = {
   title: "Divisi",

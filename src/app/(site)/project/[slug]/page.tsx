@@ -8,7 +8,7 @@ import { ProjectContent } from "@/components/projects/ProjectContent";
 import { cn } from "@/lib/utils";
 import type { Project } from "@/types";
 
-export const revalidate = 0;
+export const revalidate = false;
 
 interface ProjectDetailPageProps {
   params: Promise<{ slug: string }>;
