@@ -117,7 +117,7 @@ export function ProfilePhotoCropModal({
           <div className="mb-4">
             <h3 className="text-lg font-bold text-white">Atur Foto Profil (1:1)</h3>
             <p className="text-xs text-white/60">
-              Bingkai kotak 1:1. Foto asli dibiarkan utuh (tidak ter-crop otomatis), geser dan zoom sesuai keinginan Anda.
+              Bingkai kotak 1:1. Geser dan zoom sesuai keinginan Anda.
             </p>
           </div>
 
