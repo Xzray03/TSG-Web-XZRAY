@@ -10,6 +10,7 @@ import { DevToolsGuard } from "@/components/layout/DevToolsGuard";
 import { WaterRippleEffect } from "@/components/layout/WaterRippleEffect";
 import { RobotProvider } from "@/components/layout/RobotContext";
 import { UserProfileBadge } from "@/components/layout/UserProfileBadge";
+import { NavbarSocial } from "@/components/layout/NavbarSocial";
 import { getDivisions, getSiteSettings } from "@/sanity/queries";
 import "@/app/globals.css";
 
@@ -108,6 +109,7 @@ export default async function SiteLayout({
         </noscript>
         <RobotProvider>
           <UserProfileBadge />
+          <NavbarSocial />
           <WaterRippleEffect />
           <MouseGuard />
           <DevToolsGuard />

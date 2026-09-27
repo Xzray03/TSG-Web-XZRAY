@@ -45,3 +45,4 @@ sanity.config.ts
 # SQL files
 SQL.sql
 supabase_public_accounts_migration.sql
+social.sql
