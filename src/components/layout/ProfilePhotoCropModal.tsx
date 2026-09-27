@@ -20,6 +20,7 @@ export function ProfilePhotoCropModal({
   const [zoom, setZoom] = useState(1);
   const [pan, setPan] = useState({ x: 0, y: 0 });
   const [isDragging, setIsDragging] = useState(false);
+  const [imageSize, setImageSize] = useState<{ width: number; height: number } | null>(null);
   const dragStartRef = useRef({ x: 0, y: 0 });
   const panStartRef = useRef({ x: 0, y: 0 });
   const imageRef = useRef<HTMLImageElement>(null);
@@ -29,10 +30,31 @@ export function ProfilePhotoCropModal({
     if (isOpen) {
       setZoom(1);
       setPan({ x: 0, y: 0 });
+      setImageSize(null);
     }
   }, [isOpen, imageSrc]);
 
   if (!isOpen || !imageSrc) return null;
+
+  const handleImageLoad = (e: React.SyntheticEvent<HTMLImageElement>) => {
+    const img = e.currentTarget;
+    const natWidth = img.naturalWidth || 300;
+    const natHeight = img.naturalHeight || 300;
+    const aspect = natWidth / natHeight;
+
+    const maxDim = 280;
+    let w = maxDim;
+    let h = maxDim;
+
+    if (aspect > 1) {
+      w = maxDim;
+      h = Math.round(maxDim / aspect);
+    } else if (aspect < 1) {
+      h = maxDim;
+      w = Math.round(maxDim * aspect);
+    }
+    setImageSize({ width: w, height: h });
+  };
 
   // Mouse / Touch handlers for Panning
   const handleMouseDown = (clientX: number, clientY: number) => {
@@ -55,7 +77,7 @@ export function ProfilePhotoCropModal({
     setIsDragging(false);
   };
 
-  // Crop & Export to 1:1 Canvas (WYSIWYG: Exactly what is visible inside the 1:1 viewport)
+  // Crop & Export to Canvas preserving natural aspect ratio and user adjustments
   const handleApplyCrop = () => {
     if (!imageRef.current || !containerRef.current) return;
 
@@ -65,24 +87,34 @@ export function ProfilePhotoCropModal({
     const imgRect = img.getBoundingClientRect();
     const containerRect = container.getBoundingClientRect();
 
-    const outputSize = 400; // 1:1 Canvas size (400x400)
+    const maxOutput = 800;
+    const containerAspect = containerRect.width / containerRect.height;
+
+    let outputWidth = maxOutput;
+    let outputHeight = maxOutput;
+    if (containerAspect >= 1) {
+      outputWidth = maxOutput;
+      outputHeight = Math.round(maxOutput / containerAspect);
+    } else {
+      outputHeight = maxOutput;
+      outputWidth = Math.round(maxOutput * containerAspect);
+    }
+
     const canvas = document.createElement("canvas");
-    canvas.width = outputSize;
-    canvas.height = outputSize;
+    canvas.width = outputWidth;
+    canvas.height = outputHeight;
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
 
-    // Scale factor from viewport screen pixels to 400x400 canvas
-    const scale = outputSize / containerRect.width;
+    const scale = outputWidth / containerRect.width;
 
-    // Calculate exact image position relative to top-left of the 1:1 viewport
     const drawX = (imgRect.left - containerRect.left) * scale;
     const drawY = (imgRect.top - containerRect.top) * scale;
     const drawWidth = imgRect.width * scale;
     const drawHeight = imgRect.height * scale;
 
     ctx.fillStyle = "#0f172a";
-    ctx.fillRect(0, 0, outputSize, outputSize);
+    ctx.fillRect(0, 0, outputWidth, outputHeight);
 
     ctx.drawImage(img, drawX, drawY, drawWidth, drawHeight);
 
@@ -115,14 +147,14 @@ export function ProfilePhotoCropModal({
           </button>
 
           <div className="mb-4">
-            <h3 className="text-lg font-bold text-white">Atur Foto Profil (1:1)</h3>
+            <h3 className="text-lg font-bold text-white">Atur Foto Profil</h3>
             <p className="text-xs text-white/60">
-              Area di dalam bingkai kotak 1:1 akan menjadi foto profil Anda
+              Sesuaikan posisi dan ukuran foto Anda secara bebas tanpa batasan rasio tetap
             </p>
           </div>
 
-          {/* Interactive Crop Viewport Frame (1:1 Square Box) */}
-          <div className="flex justify-center my-2">
+          {/* Interactive Crop Viewport Frame */}
+          <div className="flex justify-center my-2 min-h-[280px] items-center">
             <div
               ref={containerRef}
               onMouseDown={(e) => handleMouseDown(e.clientX, e.clientY)}
@@ -136,7 +168,11 @@ export function ProfilePhotoCropModal({
                 if (e.touches[0]) handleMouseMove(e.touches[0].clientX, e.touches[0].clientY);
               }}
               onTouchEnd={handleMouseUp}
-              className="relative w-[280px] h-[280px] overflow-hidden rounded-2xl border-2 border-emerald-500/80 bg-slate-950 cursor-grab active:cursor-grabbing flex items-center justify-center shadow-[0_0_30px_rgba(16,185,129,0.2)]"
+              style={{
+                width: imageSize ? `${imageSize.width}px` : "280px",
+                height: imageSize ? `${imageSize.height}px` : "280px",
+              }}
+              className="relative overflow-hidden rounded-2xl border-2 border-emerald-500/80 bg-slate-950 cursor-grab active:cursor-grabbing flex items-center justify-center shadow-[0_0_30px_rgba(16,185,129,0.2)] transition-all duration-200"
             >
               <img
                 ref={imageRef}
@@ -144,6 +180,7 @@ export function ProfilePhotoCropModal({
                 alt="Crop preview"
                 crossOrigin="anonymous"
                 draggable={false}
+                onLoad={handleImageLoad}
                 style={{
                   transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom})`,
                   maxWidth: "100%",
