@@ -65,14 +65,19 @@ export async function getPublicAccountAction(realAccountId: string) {
 
     if (data && data.length > 0) {
       const pubAcc = data[0];
-      if (!pubAcc.avatar_url) {
-        const { data: realAcc } = await serverSupabase
-          .from("user_accounts")
-          .select("photo")
-          .eq("id", realAccountId)
-          .limit(1);
-        if (realAcc && realAcc[0]?.photo) {
+      const { data: realAcc } = await serverSupabase
+        .from("user_accounts")
+        .select("photo, created_at")
+        .eq("id", realAccountId)
+        .limit(1);
+
+      if (realAcc && realAcc.length > 0) {
+        if (!pubAcc.avatar_url && realAcc[0].photo) {
           pubAcc.avatar_url = realAcc[0].photo;
+        }
+        if (realAcc[0].created_at) {
+          pubAcc.created_at = realAcc[0].created_at;
+          pubAcc.real_account_created_at = realAcc[0].created_at;
         }
       }
       return { publicAccount: pubAcc };

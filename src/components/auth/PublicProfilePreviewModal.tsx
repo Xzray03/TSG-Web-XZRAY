@@ -13,6 +13,7 @@ import {
 import { FaUser, FaLinkedin, FaGithub, FaYoutube, FaTiktok, FaInstagram, FaFacebook, FaWhatsapp, FaLine } from "react-icons/fa";
 import { LogoModal } from "@/components/layout/LogoModal";
 import { useScrollLock } from "@/hooks/useScrollLock";
+import { formatAccountCreatedAt } from "@/lib/format-account-date";
 
 interface PublicProfilePreviewModalProps {
   isOpen: boolean;
@@ -182,6 +183,15 @@ export function PublicProfilePreviewModal({
               </div>
             )}
           </div>
+
+          {(() => {
+            const createdText = formatAccountCreatedAt(
+              publicAccount.real_account_created_at || publicAccount.created_at
+            );
+            return createdText ? (
+              <p className="mt-4 text-left text-[10px] text-white/40 italic">{createdText}</p>
+            ) : null;
+          })()}
         </div>
       </div>
 

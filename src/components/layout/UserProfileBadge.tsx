@@ -37,6 +37,7 @@ import { checkAccountAction, processAuthAction, signOutAction } from "@/actions/
 import { getPublicAccountAction } from "@/actions/publicAccountActions";
 import { sessionLogoutAction, sessionRespondAction } from "@/actions/sessionActions";
 import { getGenerationsAction, getTeamMembersAction } from "@/actions/teamActions";
+import { formatAccountCreatedAt } from "@/lib/format-account-date";
 
 interface UserProfile {
   id?: string;
@@ -46,6 +47,7 @@ interface UserProfile {
   email?: string;
   isTsgMember?: boolean;
   authMethod?: "face" | "password";
+  createdAt?: string;
 }
 
 async function parseJsonResponse(res: Response) {
@@ -219,6 +221,7 @@ export function UserProfileBadge() {
           email: data.tsgInfo?.email || profile.email,
           isTsgMember: !!data.isTsgMember,
           authMethod: data.authMethod || profile.authMethod,
+          createdAt: data.createdAt || profile.createdAt,
         };
 
         setProfile(updatedProfile);
@@ -264,6 +267,7 @@ export function UserProfileBadge() {
               id: data.id || profile.id,
               generation: data.generation || profile.generation,
               iconDataUrl: data.photo || profile.iconDataUrl,
+              createdAt: data.createdAt || profile.createdAt,
             };
             setProfile(updated);
             localStorage.setItem("tsg_user_profile", JSON.stringify(updated));
@@ -852,6 +856,17 @@ export function UserProfileBadge() {
                   </div>
                 </form>
               )}
+
+              {(() => {
+                const createdText = formatAccountCreatedAt(
+                  profile.createdAt || publicAccountInfo?.real_account_created_at || publicAccountInfo?.created_at
+                );
+                return createdText ? (
+                  <p className="mt-4 text-left text-[10px] text-white/40 italic font-mono">
+                    {createdText}
+                  </p>
+                ) : null;
+              })()}
             </motion.div>
           </motion.div>
         )}

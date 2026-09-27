@@ -31,12 +31,14 @@ export async function getSocialPostsAction() {
           avatar_url,
           show_tsg_member,
           social_media,
-          website
+          website,
+          created_at
         ),
         user_accounts (
           id,
           generation,
-          is_tsg_member
+          is_tsg_member,
+          created_at
         )
       `)
       .order("created_at", { ascending: false });

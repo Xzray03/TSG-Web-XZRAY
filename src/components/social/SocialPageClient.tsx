@@ -432,6 +432,7 @@ export function SocialPageClient({ initialPosts }: SocialPageClientProps) {
                       setPreviewProfile({
                         ...author,
                         avatar_url: author.avatar_url,
+                        real_account_created_at: post.user_accounts?.created_at || author.created_at,
                       })
                     }
                     className="relative h-11 w-11 overflow-hidden rounded-full border border-white/20 bg-slate-800 flex items-center justify-center shrink-0 cursor-pointer hover:scale-105 active:scale-95 transition-transform"
@@ -524,7 +525,10 @@ export function SocialPageClient({ initialPosts }: SocialPageClientProps) {
                           >
                             <button
                               type="button"
-                              onClick={() => cAuthor && setPreviewProfile(cAuthor)}
+                              onClick={() => cAuthor && setPreviewProfile({
+                                ...cAuthor,
+                                real_account_created_at: cAuthor.created_at
+                              })}
                               className="relative h-8 w-8 overflow-hidden rounded-full border border-white/15 bg-slate-800 flex items-center justify-center shrink-0 cursor-pointer hover:scale-105 transition-transform"
                               title="Lihat profil publik"
                             >

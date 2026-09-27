@@ -118,6 +118,7 @@ export async function checkAccountAction(name: string) {
         email,
         generation,
         photo,
+        createdAt: acc.created_at,
         isTsgMember: acc.is_tsg_member || isTsgMember,
         tsgInfo: mergedTsgInfo,
         faceVectors: acc.face_vectors || null,
