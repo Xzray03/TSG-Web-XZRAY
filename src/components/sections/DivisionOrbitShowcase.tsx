@@ -43,7 +43,7 @@ export function DivisionOrbitShowcase({
   const parallaxY = (mouseY - 50) / 50;
 
   return (
-    <div className="relative mx-auto h-[420px] w-[340px] sm:h-[460px] sm:w-[420px] -translate-y-[90px]">
+    <div className="relative mx-auto h-[420px] w-[340px] sm:h-[460px] sm:w-[420px] -translate-y-[150px]">
       {/* Ambient center glow */}
       <div className="pointer-events-none absolute left-1/2 top-1/2 h-72 w-72 -translate-x-1/2 -translate-y-1/2 rounded-full bg-primary/10 blur-[110px]" />
 
