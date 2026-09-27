@@ -14,10 +14,13 @@ function getSupabaseClient() {
   });
 }
 
-export async function getSocialPostsAction() {
+export async function getSocialPostsAction(page = 0, limit = 10) {
   const supabase = getSupabaseClient();
+  const from = page * limit;
+  const to = from + limit - 1;
+
   try {
-    const { data: posts, error } = await supabase
+    const { data: posts, count, error } = await supabase
       .from("social_posts")
       .select(`
         *,
@@ -31,8 +34,7 @@ export async function getSocialPostsAction() {
           avatar_url,
           show_tsg_member,
           social_media,
-          website,
-          created_at
+          website
         ),
         user_accounts (
           id,
@@ -40,14 +42,15 @@ export async function getSocialPostsAction() {
           is_tsg_member,
           created_at
         )
-      `)
-      .order("created_at", { ascending: false });
+      `, { count: "exact" })
+      .order("created_at", { ascending: false })
+      .range(from, to);
 
     if (error) {
       if (error.code === "42P01") {
-        return { posts: [], error: "Tabel social_posts belum ada. Jalankan social.sql." };
+        return { posts: [], totalCount: 0, error: "Tabel social_posts belum ada. Jalankan social.sql." };
       }
-      return { posts: [], error: error.message };
+      return { posts: [], totalCount: 0, error: error.message };
     }
 
     // Fetch comments for these posts
@@ -90,9 +93,9 @@ export async function getSocialPostsAction() {
       comments: commentsMap[p.id] || [],
     }));
 
-    return { posts: enrichedPosts };
+    return { posts: enrichedPosts, totalCount: count || 0 };
   } catch (err: any) {
-    return { posts: [], error: err.message || "Gagal mengambil data postingan" };
+    return { posts: [], totalCount: 0, error: err.message || "Gagal mengambil data postingan" };
   }
 }
 
@@ -189,7 +192,6 @@ export async function deleteSocialPostAction(body: {
 
   const supabase = getSupabaseClient();
   try {
-    // Get post details
     const { data: postData, error: postErr } = await supabase
       .from("social_posts")
       .select("*")
@@ -202,7 +204,6 @@ export async function deleteSocialPostAction(body: {
 
     const post = postData[0];
 
-    // Get user account details to check if creator
     const { data: userData, error: userErr } = await supabase
       .from("user_accounts")
       .select("*")

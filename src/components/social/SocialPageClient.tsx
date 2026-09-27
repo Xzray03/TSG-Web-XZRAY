@@ -39,6 +39,7 @@ const POSTS_PER_PAGE = 10;
 export function SocialPageClient({ initialPosts }: SocialPageClientProps) {
   const router = useRouter();
   const [posts, setPosts] = useState<any[]>(initialPosts);
+  const [totalCount, setTotalCount] = useState(0);
   const [isLoading, setIsLoading] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [showCreateForm, setShowCreateForm] = useState(false);
@@ -63,7 +64,7 @@ export function SocialPageClient({ initialPosts }: SocialPageClientProps) {
   useScrollLock(showCreateForm || !!postToDelete);
 
   useEffect(() => {
-    async function verifyAuthAndLoad() {
+    async function verifyAuth() {
       try {
         const saved = localStorage.getItem("tsg_user_profile");
         if (!saved) {
@@ -83,29 +84,36 @@ export function SocialPageClient({ initialPosts }: SocialPageClientProps) {
           return;
         }
         setPublicAccount(res.publicAccount);
-
-        // Load posts on page open
-        await fetchPosts();
       } catch (e) {
         router.replace("/");
       }
     }
-    verifyAuthAndLoad();
+    verifyAuth();
+  }, [router]);
 
+  useEffect(() => {
+    if (profile?.id) {
+      fetchPosts(currentPage);
+    }
+  }, [currentPage, profile?.id]);
+
+  useEffect(() => {
+    if (!profile?.id) return;
     // Auto load posts every 1 minute (60 seconds)
     const interval = setInterval(() => {
-      fetchPosts(true);
+      fetchPosts(currentPage, true);
     }, 60000);
 
     return () => clearInterval(interval);
-  }, [router]);
+  }, [currentPage, profile?.id]);
 
-  const fetchPosts = async (silent = false) => {
+  const fetchPosts = async (pageToFetch = currentPage, silent = false) => {
     if (!silent) setIsLoading(true);
     try {
-      const res: any = await getSocialPostsAction();
+      const res: any = await getSocialPostsAction(pageToFetch, POSTS_PER_PAGE);
       if (res && res.posts) {
         setPosts(res.posts);
+        setTotalCount(res.totalCount || 0);
       }
     } catch (e) {
     } finally {
@@ -115,7 +123,7 @@ export function SocialPageClient({ initialPosts }: SocialPageClientProps) {
 
   const handleManualRefresh = async () => {
     setIsRefreshing(true);
-    await fetchPosts();
+    await fetchPosts(currentPage);
     setIsRefreshing(false);
   };
 
@@ -143,8 +151,11 @@ export function SocialPageClient({ initialPosts }: SocialPageClientProps) {
         setContent("");
         setLinkUrl("");
         setShowCreateForm(false);
-        setCurrentPage(0); // Jump to newest page
-        await fetchPosts();
+        if (currentPage === 0) {
+          await fetchPosts(0);
+        } else {
+          setCurrentPage(0); // Jump to newest page
+        }
       }
     } catch (err: any) {
       setErrorMsg(err.message || "Gagal membuat postingan.");
@@ -167,7 +178,7 @@ export function SocialPageClient({ initialPosts }: SocialPageClientProps) {
       });
       if (!res?.error) {
         setCommentInputs((prev) => ({ ...prev, [postId]: "" }));
-        await fetchPosts();
+        await fetchPosts(currentPage);
       }
     } catch (e) {
     } finally {
@@ -187,7 +198,7 @@ export function SocialPageClient({ initialPosts }: SocialPageClientProps) {
         alert(res.error);
       } else {
         setPostToDelete(null);
-        await fetchPosts();
+        await fetchPosts(currentPage);
       }
     } catch (e: any) {
       alert(e.message || "Gagal menghapus postingan.");
@@ -200,10 +211,7 @@ export function SocialPageClient({ initialPosts }: SocialPageClientProps) {
     profile?.generation?.toLowerCase() === "creator" ||
     profile?.name?.toLowerCase() === "creator";
 
-  // Pagination calculations
-  const totalPages = Math.ceil(posts.length / POSTS_PER_PAGE) || 1;
-  const startIndex = currentPage * POSTS_PER_PAGE;
-  const currentPosts = posts.slice(startIndex, startIndex + POSTS_PER_PAGE);
+  const totalPages = Math.ceil(totalCount / POSTS_PER_PAGE) || 1;
 
   return (
     <div className="bg-grid relative overflow-hidden pb-16 pt-36 min-h-screen">
@@ -388,7 +396,7 @@ export function SocialPageClient({ initialPosts }: SocialPageClientProps) {
 
         {isLoading && (
           <div className="flex items-center justify-center gap-2 text-blue-300 text-sm py-8 animate-pulse">
-            <Loader2 className="w-5 h-5 animate-spin" />
+            <Loader2 className="h-5 w-5 animate-spin" />
             <span>Memuat postingan...</span>
           </div>
         )}
@@ -401,7 +409,7 @@ export function SocialPageClient({ initialPosts }: SocialPageClientProps) {
             </div>
           )}
 
-          {currentPosts.map((post) => {
+          {posts.map((post) => {
             const author = post.public_accounts;
             const comments = post.comments || [];
             const isExpanded = expandedComments[post.id];
@@ -525,10 +533,13 @@ export function SocialPageClient({ initialPosts }: SocialPageClientProps) {
                           >
                             <button
                               type="button"
-                              onClick={() => cAuthor && setPreviewProfile({
-                                ...cAuthor,
-                                real_account_created_at: cAuthor.created_at
-                              })}
+                              onClick={() =>
+                                cAuthor &&
+                                setPreviewProfile({
+                                  ...cAuthor,
+                                  real_account_created_at: cAuthor.created_at,
+                                })
+                              }
                               className="relative h-8 w-8 overflow-hidden rounded-full border border-white/15 bg-slate-800 flex items-center justify-center shrink-0 cursor-pointer hover:scale-105 transition-transform"
                               title="Lihat profil publik"
                             >
@@ -606,7 +617,7 @@ export function SocialPageClient({ initialPosts }: SocialPageClientProps) {
           })}
 
           {/* Pagination Navigation */}
-          {posts.length > 0 && (
+          {totalCount > 0 && (
             <div className="flex items-center justify-center gap-2 pt-6">
               <button
                 type="button"
@@ -628,7 +639,7 @@ export function SocialPageClient({ initialPosts }: SocialPageClientProps) {
               </button>
 
               <span className="px-4 text-xs font-semibold text-white/70">
-                Hal {currentPage + 1} dari {totalPages} ({posts.length} Post)
+                Hal {currentPage + 1} dari {totalPages} ({totalCount} Post)
               </span>
 
               <button
