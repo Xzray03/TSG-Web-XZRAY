@@ -235,7 +235,7 @@ export async function checkVerificationStatusAction(name: string, deviceId: stri
 export async function respondVerificationAction(body: {
   verificationId: string;
   responderUserId: string;
-  responderUsername: string;
+  responderUsername?: string;
   action: "approve" | "reject";
 }) {
   const { verificationId, responderUserId, responderUsername, action } = body;
@@ -246,6 +246,34 @@ export async function respondVerificationAction(body: {
   const supabase = getSupabaseClient();
   const nowIso = new Date().toISOString();
   const newStatus = action === "approve" ? "approved" : "rejected";
+
+  // Resolve responder's nickname/name from DB
+  let resolvedUsername = responderUsername && responderUsername !== "Creator" ? responderUsername : "";
+  if (!resolvedUsername) {
+    const { data: pubAcc } = await supabase
+      .from("public_accounts")
+      .select("nickname, name")
+      .eq("real_account_id", responderUserId)
+      .limit(1);
+
+    if (pubAcc && pubAcc.length > 0) {
+      resolvedUsername = pubAcc[0].nickname || pubAcc[0].name || "";
+    }
+
+    if (!resolvedUsername) {
+      const { data: userAcc } = await supabase
+        .from("user_accounts")
+        .select("name")
+        .eq("id", responderUserId)
+        .limit(1);
+
+      if (userAcc && userAcc.length > 0) {
+        resolvedUsername = userAcc[0].name || "";
+      }
+    }
+  }
+
+  const finalResponderName = resolvedUsername || "Creator";
 
   try {
     const { data: verif, error: fetchErr } = await supabase
@@ -264,7 +292,7 @@ export async function respondVerificationAction(body: {
       .update({
         status: newStatus,
         responded_by: responderUserId,
-        responded_by_username: responderUsername || "Creator",
+        responded_by_username: finalResponderName,
         updated_at: nowIso,
       })
       .eq("id", verificationId);
@@ -285,7 +313,7 @@ export async function respondVerificationAction(body: {
           const parsed = JSON.parse(m.content);
           if (parsed && parsed.verificationId === verificationId) {
             parsed.status = newStatus;
-            parsed.respondedByUsername = responderUsername || "Creator";
+            parsed.respondedByUsername = finalResponderName;
             const updatedContent = JSON.stringify(parsed);
 
             await supabase

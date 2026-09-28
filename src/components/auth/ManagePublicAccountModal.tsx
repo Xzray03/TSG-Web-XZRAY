@@ -178,6 +178,22 @@ export default function ManagePublicAccountModal({
       return;
     }
 
+    // Check reserved nickname patterns
+    const raw = cleanNick.toLowerCase();
+    const normalized = raw.replace(/[^a-z0-9]/g, "");
+    if (
+      normalized === "tsg" ||
+      normalized.includes("tsgofficial") ||
+      normalized.includes("officialtsg") ||
+      /^tsg[_\.\-]?official/i.test(raw) ||
+      /^official[_\.\-]?tsg/i.test(raw) ||
+      /^tsg[_\.\-]/i.test(raw)
+    ) {
+      setNicknameStatus("invalid");
+      setNicknameError("Nickname ini dilarang (nama akun resmi/sistem).");
+      return;
+    }
+
     setNicknameStatus("checking");
     setNicknameError("");
 
@@ -185,12 +201,12 @@ export default function ManagePublicAccountModal({
       try {
         const currentId = resolvedId || realAccountId;
         const data: any = await checkNicknameAction(cleanNick, currentId || undefined);
-        if (data && !data.error) {
+        if (data) {
           if (data.available) {
             setNicknameStatus("available");
           } else {
             setNicknameStatus("taken");
-            setNicknameError("Nickname sudah digunakan.");
+            setNicknameError(data.error || "Nickname sudah digunakan.");
           }
         }
       } catch (e) {

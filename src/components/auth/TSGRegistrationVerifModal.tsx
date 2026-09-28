@@ -271,7 +271,7 @@ export function TSGRegistrationVerifModal({
               </div>
               <h4 className="text-sm font-bold text-amber-300">Pendaftaran akun sedang diajukan</h4>
               <p className="text-xs text-white/70 max-w-xs leading-relaxed">
-                Pengajuan verifikasi untuk <span className="font-semibold text-white">{name}</span> ({generation}) sedang ditinjau oleh akun Creator melalui Chat Resmi TSG.
+                Pengajuan verifikasi untuk <span className="font-semibold text-white">{name}</span> ({generation}) sedang ditinjau.
               </p>
               <div className="w-full rounded-2xl bg-white/5 border border-white/10 p-3 text-left text-[11px] text-white/60 space-y-1">
                 <p>• Device: <span className="text-white/80">{browserName}</span></p>
@@ -303,7 +303,7 @@ export function TSGRegistrationVerifModal({
               <p className="text-xs text-white/70 max-w-xs leading-relaxed">
                 {verifStatus === "expired"
                   ? "Batas waktu pengajuan 30 hari telah habis. Silakan lakukan verifikasi ulang."
-                  : "Pengajuan Anda ditolak oleh Creator. Silakan lakukan verifikasi ulang."}
+                  : "Pengajuan Anda ditolak. Silakan lakukan verifikasi ulang."}
               </p>
               <button
                 type="button"
@@ -355,7 +355,7 @@ export function TSGRegistrationVerifModal({
           {step === "submitting" && (
             <div className="flex flex-col items-center justify-center py-10 text-center space-y-3">
               <Loader2 className="w-8 h-8 text-amber-400 animate-spin" />
-              <p className="text-xs text-white/80 font-medium">Mengunggah foto snapshot ke Catbox & mengirim pengajuan...</p>
+              <p className="text-xs text-white/80 font-medium">Mengirim pengajuan...</p>
             </div>
           )}
         </motion.div>

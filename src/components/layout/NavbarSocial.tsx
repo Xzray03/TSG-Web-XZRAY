@@ -5,33 +5,43 @@ import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
 import { ChevronRight, ChevronLeft, MessageSquare, MessageCircle } from "lucide-react";
 import { getPublicAccountAction } from "@/actions/publicAccountActions";
+import ManagePublicAccountModal from "@/components/auth/ManagePublicAccountModal";
 
 export function NavbarSocial() {
   const [isOpen, setIsOpen] = useState(false);
+  const [profile, setProfile] = useState<any>(null);
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [isAuthorized, setIsAuthorized] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
+  const [isManageModalOpen, setIsManageModalOpen] = useState(false);
 
   useEffect(() => {
     async function checkAuthAndPublicAccount() {
       try {
         const saved = localStorage.getItem("tsg_user_profile");
         if (!saved) {
+          setProfile(null);
+          setIsLoggedIn(false);
           setIsAuthorized(false);
           setIsLoading(false);
           return;
         }
 
-        const profile = JSON.parse(saved);
-        if (!profile || !profile.name) {
+        const parsed = JSON.parse(saved);
+        if (!parsed || !parsed.name) {
+          setProfile(null);
+          setIsLoggedIn(false);
           setIsAuthorized(false);
           setIsLoading(false);
           return;
         }
 
-        let realAccountId = profile.id;
+        setProfile(parsed);
+        setIsLoggedIn(true);
+
+        let realAccountId = parsed.id;
         if (!realAccountId) {
-          // If ID is not in localStorage, try checking via name action or similar if needed,
-          // but if profile has id, check public account:
+          setIsAuthorized(false);
           setIsLoading(false);
           return;
         }
@@ -64,14 +74,23 @@ export function NavbarSocial() {
     };
   }, []);
 
-  if (isLoading || !isAuthorized) {
+  if (isLoading || !isLoggedIn) {
     return null;
   }
 
+  const handleArrowClick = () => {
+    if (isAuthorized) {
+      setIsOpen(true);
+    } else {
+      setIsManageModalOpen(true);
+    }
+  };
+
   return (
-    <div className="fixed left-0 top-1/2 -translate-y-1/2 z-[9998] flex items-center">
+    <>
+      <div className="fixed left-0 top-1/2 -translate-y-1/2 z-[9998] flex items-center">
       <AnimatePresence mode="wait">
-        {isOpen ? (
+        {isOpen && isAuthorized ? (
           <motion.div
             key="navbar-social-open"
             initial={{ x: -100, opacity: 0 }}
@@ -116,7 +135,7 @@ export function NavbarSocial() {
           >
             <button
               type="button"
-              onClick={() => setIsOpen(true)}
+              onClick={handleArrowClick}
               aria-label="Buka Navbar Social"
               className="flex h-12 w-8 items-center justify-center rounded-r-2xl bg-slate-900/90 backdrop-blur-xl border-y border-r border-white/20 text-white/80 hover:text-white hover:bg-slate-800/90 transition-all duration-300 cursor-pointer shadow-lg hover:w-10 group"
             >
@@ -125,6 +144,21 @@ export function NavbarSocial() {
           </motion.div>
         )}
       </AnimatePresence>
-    </div>
+      </div>
+
+      {profile && (
+        <ManagePublicAccountModal
+          isOpen={isManageModalOpen}
+          realAccountId={profile.id || ""}
+          realAccountName={profile.name || ""}
+          isTsgMember={!!profile.isTsgMember}
+          defaultAvatarUrl={profile.iconDataUrl || ""}
+          onClose={() => {
+            setIsManageModalOpen(false);
+            window.dispatchEvent(new Event("tsg_profile_updated"));
+          }}
+        />
+      )}
+    </>
   );
 }

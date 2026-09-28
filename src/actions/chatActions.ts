@@ -19,6 +19,11 @@ export async function getConversationsAction(realAccountId: string) {
   if (!realAccountId) return { conversations: [] };
   const supabase = getSupabaseClient();
 
+  // Start Sanity fetch early so it runs in parallel with the Supabase query below.
+  const tsgLogoPromise = getSiteSettings()
+    .then((s) => s?.logoUrl || "/logo.webp")
+    .catch(() => "/logo.webp");
+
   try {
     const { data, error } = await supabase
       .from("chat_conversations")
@@ -107,22 +112,23 @@ export async function getConversationsAction(realAccountId: string) {
     let virtualConv: any = conversations.find((c: any) => c.otherUser.id === VIRTUAL_ID);
 
     if (!virtualConv) {
+      const tsgLogoUrl = await tsgLogoPromise;
       virtualConv = {
         id: "",
         user1_id: realAccountId,
         user2_id: VIRTUAL_ID,
-        last_message: "Akun Resmi Sistem The Smart Generation",
+        last_message: "AKUN RESMI THE SMART GENERATION",
         last_message_at: new Date().toISOString(),
         otherUser: {
           id: VIRTUAL_ID,
           name: "The Smart Generation",
           nickname: "tsg_official",
-          photo: "/logo.png",
+          photo: tsgLogoUrl,
           is_tsg_member: true,
           is_virtual: true,
           badge: "AKUN RESMI",
           generation: "Official",
-          bio: "Akun Resmi Sistem The Smart Generation",
+          bio: "AKUN RESMI THE SMART GENERATION",
           website: "",
           social_media: {},
           age: null,
@@ -134,6 +140,13 @@ export async function getConversationsAction(realAccountId: string) {
       if (virtualConv.otherUser) {
         virtualConv.otherUser.badge = "AKUN RESMI";
         virtualConv.otherUser.is_virtual = true;
+        // Override photo with fresh Sanity logo (fallback to existing/"/logo.webp").
+        const tsgLogoUrl = await tsgLogoPromise;
+        if (tsgLogoUrl && tsgLogoUrl !== "/logo.webp") {
+          virtualConv.otherUser.photo = tsgLogoUrl;
+        } else if (!virtualConv.otherUser.photo) {
+          virtualConv.otherUser.photo = "/logo.webp";
+        }
       }
       conversations = [virtualConv, ...conversations.filter((c: any) => c.otherUser.id !== VIRTUAL_ID)];
     }

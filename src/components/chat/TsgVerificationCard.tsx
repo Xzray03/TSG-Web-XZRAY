@@ -5,7 +5,7 @@ import Image from "next/image";
 import { Loader2, CheckCircle2, XCircle } from "lucide-react";
 import { respondVerificationAction } from "@/actions/tsgVerifActions";
 
-export function TsgVerificationCard({ payload, currentUserId, isCreator }: { payload: any; currentUserId: string; isCreator: boolean }) {
+export function TsgVerificationCard({ payload, currentUserId, isCreator, currentUserNickname }: { payload: any; currentUserId: string; isCreator: boolean; currentUserNickname?: string }) {
   const [isProcessing, setIsProcessing] = useState(false);
   const verificationId = payload.verificationId || "";
   const status = payload.status || "pending";
@@ -23,7 +23,7 @@ export function TsgVerificationCard({ payload, currentUserId, isCreator }: { pay
       await respondVerificationAction({
         verificationId,
         responderUserId: currentUserId,
-        responderUsername: payload?.responderUsername || "Creator",
+        responderUsername: currentUserNickname || payload?.responderUsername || "Creator",
         action,
       });
       window.location.reload();
@@ -83,7 +83,7 @@ export function TsgVerificationCard({ payload, currentUserId, isCreator }: { pay
           </div>
         ) : (
           <p className="mt-3 rounded-xl bg-white/5 px-3 py-2 text-center text-[11px] text-white/60">
-            Menunggu keputusan akun Creator.
+            Menunggu keputusan...
           </p>
         )
       ) : (

@@ -455,7 +455,12 @@ export function ChatPageClient() {
                       return (
                         <div key={m.id} className={`flex flex-col ${isMe ? "items-end" : "items-start"}`}>
                           <div className="max-w-[92%] sm:max-w-[80%]">
-                            <TsgVerificationCard payload={verifPayload} currentUserId={profile.id} isCreator={profile?.generation?.toLowerCase() === "creator"} />
+                            <TsgVerificationCard
+                              payload={verifPayload}
+                              currentUserId={profile.id}
+                              isCreator={profile?.generation?.toLowerCase() === "creator"}
+                              currentUserNickname={publicAccount?.nickname || profile?.name}
+                            />
                           </div>
                           <span className="text-[9px] text-white/30 mt-1 px-1">
                             {new Date(m.created_at).toLocaleTimeString("id-ID", {

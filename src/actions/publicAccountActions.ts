@@ -2,6 +2,27 @@
 
 import { createClient } from "@supabase/supabase-js";
 
+/**
+ * Memeriksa apakah nickname termasuk nama/kata reserved yang dilarang (sistem/akun resmi TSG).
+ */
+export async function isReservedNickname(nickname: string): Promise<boolean> {
+  if (!nickname) return false;
+  const raw = nickname.trim().toLowerCase();
+  const normalized = raw.replace(/[^a-z0-9]/g, "");
+
+  if (
+    normalized === "tsg" ||
+    normalized.includes("tsgofficial") ||
+    normalized.includes("officialtsg") ||
+    /^tsg[_\.\-]?official/i.test(raw) ||
+    /^official[_\.\-]?tsg/i.test(raw) ||
+    /^tsg[_\.\-]/i.test(raw)
+  ) {
+    return true;
+  }
+  return false;
+}
+
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || "";
 const supabaseServiceKey =
   process.env.SUPABASE_SERVICE_ROLE_KEY ||
@@ -20,6 +41,10 @@ export async function checkNicknameAction(nickname: string, excludeAccountId?: s
   }
 
   const cleanNick = nickname.trim().toLowerCase();
+  if (await isReservedNickname(cleanNick)) {
+    return { exists: true, available: false, error: "Nickname ini dilarang karena merupakan nama akun resmi/sistem." };
+  }
+
   const serverSupabase = getSupabaseClient();
 
   try {
@@ -109,6 +134,10 @@ export async function savePublicAccountAction(body: {
   const cleanNickname = nickname.trim();
   if (cleanNickname.length < 3 || /\s/.test(cleanNickname)) {
     return { error: "Nickname minimal 3 karakter dan tidak boleh mengandung spasi." };
+  }
+
+  if (await isReservedNickname(cleanNickname)) {
+    return { error: "Nickname ini dilarang karena merupakan nama akun resmi/sistem." };
   }
 
   const serverSupabase = getSupabaseClient();
