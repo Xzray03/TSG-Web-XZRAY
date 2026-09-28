@@ -103,8 +103,11 @@ export async function createSocialPostAction(body: {
   realAccountId: string;
   content: string;
   linkUrl?: string;
+  mediaUrl?: string;
+  mediaType?: string;
+  attachments?: any[];
 }) {
-  const { realAccountId, content, linkUrl } = body;
+  const { realAccountId, content, linkUrl, mediaUrl, mediaType, attachments } = body;
   if (!realAccountId || !content || !content.trim()) {
     return { error: "Konten postingan wajib diisi." };
   }
@@ -128,6 +131,9 @@ export async function createSocialPostAction(body: {
       public_account_id: publicAccountId,
       content: content.trim(),
       link_url: linkUrl && linkUrl.trim() ? linkUrl.trim() : null,
+      media_url: mediaUrl || (attachments && attachments[0]?.url) || null,
+      media_type: mediaType || (attachments && attachments[0]?.type) || null,
+      attachments: attachments || [],
     });
 
     if (insertErr) {
@@ -137,6 +143,63 @@ export async function createSocialPostAction(body: {
     return { success: true };
   } catch (err: any) {
     return { error: err.message || "Gagal membuat postingan" };
+  }
+}
+
+export async function uploadSocialFilesAction(formData: FormData) {
+  try {
+    const files = formData.getAll("files") as File[];
+    if (!files || files.length === 0) {
+      return { error: "Tidak ada file yang diunggah." };
+    }
+
+    if (files.length > 10) {
+      return { error: "Maksimal 10 file per postingan." };
+    }
+
+    let totalSize = 0;
+    for (const f of files) {
+      totalSize += f.size;
+    }
+
+    const MAX_TOTAL_SIZE = 100 * 1024 * 1024; // 100 MB
+    if (totalSize > MAX_TOTAL_SIZE) {
+      return { error: "Total ukuran file melebihi batas maksimal 100MB." };
+    }
+
+    const uploadedFiles = [];
+
+    for (const file of files) {
+      const catboxForm = new FormData();
+      catboxForm.append("reqtype", "fileupload");
+      catboxForm.append("fileToUpload", file, file.name);
+
+      const response = await fetch("https://catbox.moe/user/api.php", {
+        method: "POST",
+        body: catboxForm,
+      });
+
+      if (!response.ok) {
+        throw new Error(`Upload gagal untuk ${file.name} (status ${response.status})`);
+      }
+
+      const fileUrl = await response.text();
+      if (!fileUrl || !fileUrl.startsWith("http")) {
+        throw new Error(`Respon tidak valid untuk ${file.name}: ${fileUrl}`);
+      }
+
+      uploadedFiles.push({
+        url: fileUrl.trim(),
+        name: file.name,
+        size: file.size,
+        mime: file.type || "application/octet-stream",
+        ext: (file.name.split(".").pop() || "").toLowerCase(),
+      });
+    }
+
+    return { success: true, files: uploadedFiles };
+  } catch (err: any) {
+    return { error: err.message || "Gagal mengunggah file" };
   }
 }
 

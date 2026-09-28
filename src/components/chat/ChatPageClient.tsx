@@ -16,6 +16,16 @@ import {
   ShieldCheck,
   RefreshCw,
   Globe,
+  Plus,
+  Paperclip,
+  Link as LinkIcon,
+  Image as ImageIcon,
+  Film,
+  Music,
+  FileText,
+  Archive,
+  ExternalLink,
+  Upload,
 } from "lucide-react";
 import { getPublicAccountAction } from "@/actions/publicAccountActions";
 import {
@@ -24,10 +34,37 @@ import {
   sendChatMessageAction,
   searchUsersAction,
 } from "@/actions/chatActions";
+import { uploadSocialFilesAction } from "@/actions/socialActions";
 import { encryptChatMessage, decryptChatMessage } from "@/lib/e2ee";
+import { detectFileType } from "@/lib/fileTypeDetector";
+import { SocialMediaRenderer } from "@/components/social/SocialMediaRenderer";
 import { PublicProfilePreviewModal } from "@/components/auth/PublicProfilePreviewModal";
 import { useScrollLock } from "@/hooks/useScrollLock";
 import { TsgVerificationCard } from "@/components/chat/TsgVerificationCard";
+
+const VIRTUAL_ID = "00000000-0000-0000-0000-000000000001";
+const MAX_FILES = 10;
+const MAX_TOTAL_SIZE = 100 * 1024 * 1024; // 100MB
+
+function formatLastMessagePreview(rawText: string): string {
+  if (!rawText) return "...";
+  try {
+    const trimmed = rawText.trim();
+    if (trimmed.startsWith("{") && trimmed.endsWith("}")) {
+      const parsed = JSON.parse(trimmed);
+      if (parsed.type === "chat_media_message") {
+        return parsed.text || "📎 [Lampiran Media]";
+      }
+      if (parsed.type === "tsg_verification_request") {
+        return `Permohonan Pendaftaran Anggota: ${parsed.name || ""}`;
+      }
+      if (parsed.text) {
+        return parsed.text;
+      }
+    }
+  } catch (e) {}
+  return rawText;
+}
 
 export function ChatPageClient() {
   const router = useRouter();
@@ -45,6 +82,15 @@ export function ChatPageClient() {
   const [inputMessage, setInputMessage] = useState("");
   const [isSending, setIsSubmitting] = useState(false);
 
+  // Attachment & Link state for chat
+  const [chatFiles, setChatFiles] = useState<
+    { file: File; previewUrl?: string; detected: any }[]
+  >([]);
+  const [chatLinkUrl, setChatLinkUrl] = useState("");
+  const [showAttachmentMenu, setShowAttachmentMenu] = useState(false);
+  const [showLinkModal, setShowLinkModal] = useState(false);
+  const [tempLinkUrl, setTempLinkUrl] = useState("");
+
   // Search User Modal state
   const [isSearchModalOpen, setIsSearchModalOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
@@ -55,8 +101,9 @@ export function ChatPageClient() {
   const [previewProfile, setPreviewProfile] = useState<any>(null);
 
   const chatEndRef = useRef<HTMLDivElement>(null);
+  const chatFileInputRef = useRef<HTMLInputElement>(null);
 
-  useScrollLock(isSearchModalOpen || !!previewProfile);
+  useScrollLock(isSearchModalOpen || !!previewProfile || showLinkModal);
 
   useEffect(() => {
     async function verifyAuthAndLoad() {
@@ -80,7 +127,6 @@ export function ChatPageClient() {
         }
         setPublicAccount(res.publicAccount);
 
-        // Load conversations
         await loadConversations(parsed.id);
       } catch (e) {
         router.replace("/");
@@ -110,11 +156,11 @@ export function ChatPageClient() {
       if (res && res.conversations) {
         setConversations(res.conversations);
 
-        // Decrypt last messages preview
         const decMap: Record<string, string> = {};
         for (const c of res.conversations) {
           if (c.last_message) {
-            decMap[c.id] = await decryptChatMessage(c.last_message, userId, c.otherUser.id);
+            const dec = await decryptChatMessage(c.last_message, userId, c.otherUser.id);
+            decMap[c.id] = formatLastMessagePreview(dec);
           }
         }
         setDecryptedMessages((prev) => ({ ...prev, ...decMap }));
@@ -137,7 +183,6 @@ export function ChatPageClient() {
       if (res && res.messages) {
         setMessages(res.messages);
 
-        // Decrypt messages
         const decMap: Record<string, string> = {};
         for (const m of res.messages) {
           decMap[m.id] = await decryptChatMessage(m.content, currentUserId, otherUserId);
@@ -156,21 +201,111 @@ export function ChatPageClient() {
 
   const handleSelectConversation = (conv: any) => {
     setSelectedConv(conv);
+    setChatFiles([]);
+    setChatLinkUrl("");
     loadMessages(conv.id, profile.id, conv.otherUser.id);
+  };
+
+  const isVirtualTsg =
+    selectedConv?.otherUser?.id === VIRTUAL_ID ||
+    selectedConv?.otherUser?.is_virtual === true ||
+    selectedConv?.otherUser?.nickname === "tsg_official";
+
+  const processChatFiles = async (newFilesArray: File[]) => {
+    if (isVirtualTsg) return;
+    if (!newFilesArray || newFilesArray.length === 0) return;
+
+    if (chatFiles.length + newFilesArray.length > MAX_FILES) {
+      alert(`Maksimal ${MAX_FILES} file per pesan.`);
+      return;
+    }
+
+    let currentTotalSize = chatFiles.reduce((acc, curr) => acc + curr.file.size, 0);
+    for (const f of newFilesArray) {
+      currentTotalSize += f.size;
+    }
+
+    if (currentTotalSize > MAX_TOTAL_SIZE) {
+      alert("Total ukuran file melebihi batas maksimal 100MB.");
+      return;
+    }
+
+    const processed: { file: File; previewUrl?: string; detected: any }[] = [];
+    for (const file of newFilesArray) {
+      const detected = await detectFileType(file);
+      let previewUrl: string | undefined = undefined;
+      if (detected.category === "image" || detected.category === "audio") {
+        previewUrl = URL.createObjectURL(file);
+      }
+      processed.push({ file, previewUrl, detected });
+    }
+
+    setChatFiles((prev) => [...prev, ...processed]);
+  };
+
+  const handleChatFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (files) {
+      await processChatFiles(Array.from(files));
+    }
+    e.target.value = "";
+  };
+
+  const handleRemoveChatFile = (index: number) => {
+    setChatFiles((prev) => {
+      const target = prev[index];
+      if (target?.previewUrl) {
+        URL.revokeObjectURL(target.previewUrl);
+      }
+      return prev.filter((_, i) => i !== index);
+    });
   };
 
   const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!inputMessage.trim() || !profile?.id || !selectedConv?.otherUser?.id) return;
+    if ((!inputMessage.trim() && chatFiles.length === 0 && !chatLinkUrl.trim()) || !profile?.id || !selectedConv?.otherUser?.id) {
+      return;
+    }
 
     const text = inputMessage.trim();
     setInputMessage("");
     setIsSubmitting(true);
+    setShowAttachmentMenu(false);
 
     try {
-      // E2EE Encrypt before sending
+      let attachments: any[] = [];
+
+      if (!isVirtualTsg && chatFiles.length > 0) {
+        const formData = new FormData();
+        chatFiles.forEach((item) => {
+          formData.append("files", item.file, item.file.name);
+        });
+
+        const uploadRes: any = await uploadSocialFilesAction(formData);
+        if (uploadRes?.error) {
+          alert(uploadRes.error);
+          setIsSubmitting(false);
+          return;
+        }
+
+        attachments = (uploadRes.files || []).map((f: any, i: number) => ({
+          ...f,
+          type: chatFiles[i]?.detected.category || "other",
+        }));
+      }
+
+      let finalContent = text;
+      if (!isVirtualTsg && (attachments.length > 0 || chatLinkUrl.trim())) {
+        finalContent = JSON.stringify({
+          type: "chat_media_message",
+          text: text || "(Lampiran media)",
+          linkUrl: chatLinkUrl.trim() || undefined,
+          attachments,
+        });
+      }
+
       const encrypted = await encryptChatMessage(
-        text,
+        finalContent,
         profile.id,
         selectedConv.otherUser.id
       );
@@ -186,6 +321,9 @@ export function ChatPageClient() {
         if (!selectedConv.id) {
           setSelectedConv((prev: any) => ({ ...prev, id: res.conversationId }));
         }
+        chatFiles.forEach((f) => f.previewUrl && URL.revokeObjectURL(f.previewUrl));
+        setChatFiles([]);
+        setChatLinkUrl("");
         await loadMessages(res.conversationId || selectedConv.id, profile.id, selectedConv.otherUser.id, true);
         await loadConversations(profile.id, true);
         setTimeout(() => chatEndRef.current?.scrollIntoView({ behavior: "smooth" }), 100);
@@ -219,7 +357,6 @@ export function ChatPageClient() {
     setSearchQuery("");
     setSearchResults([]);
 
-    // Check if conversation already exists
     const existing = conversations.find((c) => c.otherUser.id === targetUser.id);
     if (existing) {
       handleSelectConversation(existing);
@@ -234,8 +371,12 @@ export function ChatPageClient() {
       };
       setSelectedConv(tempConv);
       setMessages([]);
+      setChatFiles([]);
+      setChatLinkUrl("");
     }
   };
+
+  const currentTotalChatFileSize = chatFiles.reduce((acc, curr) => acc + curr.file.size, 0);
 
   return (
     <div className="bg-grid relative overflow-hidden pb-10 pt-36 min-h-screen flex flex-col">
@@ -298,33 +439,27 @@ export function ChatPageClient() {
                 <div className="text-center py-12 px-4">
                   <MessageCircle className="w-8 h-8 text-white/20 mx-auto mb-2" />
                   <p className="text-xs text-white/50">Belum ada obrolan.</p>
-                  <button
-                    type="button"
-                    onClick={() => setIsSearchModalOpen(true)}
-                    className="mt-3 text-xs text-blue-400 hover:underline font-semibold"
-                  >
-                    + Cari Teman Berbincang
-                  </button>
                 </div>
               )}
 
-              {conversations.map((c) => {
-                const isSelected = selectedConv?.id === c.id;
-                const lastMsgText = decryptedMessages[c.id] || "🔒 Pesan Terenkripsi";
+              {conversations.map((conv) => {
+                const isSelected = selectedConv?.id === conv.id;
+                const lastMsg = decryptedMessages[conv.id] || "...";
+                const other = conv.otherUser;
 
                 return (
                   <div
-                    key={c.id}
-                    onClick={() => handleSelectConversation(c)}
-                    className={`p-3.5 flex items-center gap-3 cursor-pointer transition-colors ${
-                      isSelected ? "bg-blue-500/15 border-l-4 border-blue-500" : "hover:bg-white/5"
+                    key={conv.id}
+                    onClick={() => handleSelectConversation(conv)}
+                    className={`flex items-center gap-3 p-3.5 cursor-pointer transition-colors ${
+                      isSelected ? "bg-blue-600/20 border-l-4 border-blue-500" : "hover:bg-white/5"
                     }`}
                   >
                     <div className="relative h-11 w-11 overflow-hidden rounded-full border border-white/20 bg-slate-800 flex items-center justify-center shrink-0">
-                      {c.otherUser.photo ? (
+                      {other?.photo ? (
                         <Image
-                          src={c.otherUser.photo}
-                          alt={c.otherUser.name}
+                          src={other.photo}
+                          alt={other.name}
                           width={44}
                           height={44}
                           className="h-full w-full object-cover object-top"
@@ -334,28 +469,25 @@ export function ChatPageClient() {
                         <FaUser className="h-4 w-4 text-white/60" />
                       )}
                     </div>
-
                     <div className="flex-1 min-w-0">
-                      <div className="flex justify-between items-center mb-0.5">
-                        <span className="text-xs font-bold text-white truncate flex items-center gap-1.5">
-                          <span>{c.otherUser.name}</span>
-                          {c.otherUser.badge && (
-                            <span className="text-[9px] px-1.5 py-0.2 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/30 font-bold shrink-0">
-                              {c.otherUser.badge}
+                      <div className="flex items-center justify-between mb-0.5">
+                        <span className="text-xs font-bold text-white truncate flex items-center gap-1">
+                          {other?.name}
+                          {other?.badge && (
+                            <span className="text-[8px] px-1 py-0.2 rounded bg-amber-500/20 text-amber-300 font-bold">
+                              {other.badge}
                             </span>
                           )}
                         </span>
-                        {c.last_message_at && (
-                          <span className="text-[10px] text-white/40 shrink-0">
-                            {new Date(c.last_message_at).toLocaleTimeString("id-ID", {
-                              hour: "2-digit",
-                              minute: "2-digit",
-                            })}
-                          </span>
-                        )}
+                        <span className="text-[9px] text-white/40 shrink-0">
+                          {new Date(conv.last_message_at).toLocaleTimeString("id-ID", {
+                            hour: "2-digit",
+                            minute: "2-digit",
+                          })}
+                        </span>
                       </div>
-                      <p className="text-xs text-white/50 truncate flex items-center gap-1">
-                        <span>{lastMsgText.startsWith('{"type":"tsg_verification_request"') ? "📋 Permohonan Pendaftaran Anggota TSG" : lastMsgText}</span>
+                      <p className="text-[11px] text-slate-400 truncate">
+                        {lastMsg}
                       </p>
                     </div>
                   </div>
@@ -364,29 +496,29 @@ export function ChatPageClient() {
             </div>
           </div>
 
-          {/* Main Chat Panel */}
+          {/* Active Chat Area */}
           <div
             className={`flex-1 flex flex-col bg-slate-900/50 ${
-              !selectedConv ? "hidden md:flex" : "flex"
+              selectedConv ? "flex" : "hidden md:flex"
             }`}
           >
             {selectedConv ? (
               <>
-                {/* Chat Panel Header */}
-                <div className="p-3.5 sm:p-4 border-b border-white/10 flex items-center justify-between bg-slate-900/90">
-                  <div className="flex items-center gap-3 min-w-0">
+                {/* Chat Header */}
+                <div className="p-3.5 border-b border-white/10 bg-slate-950/60 flex items-center justify-between">
+                  <div className="flex items-center gap-3">
                     <button
                       type="button"
                       onClick={() => setSelectedConv(null)}
-                      className="md:hidden text-white/70 hover:text-white p-1"
+                      className="md:hidden flex h-8 w-8 items-center justify-center rounded-xl bg-white/5 text-white/80 hover:bg-white/10"
                     >
-                      ←
+                      ✕
                     </button>
                     <div
                       onClick={() => setPreviewProfile(selectedConv.otherUser)}
                       className="relative h-10 w-10 overflow-hidden rounded-full border border-white/20 bg-slate-800 flex items-center justify-center shrink-0 cursor-pointer hover:scale-105 transition-transform"
                     >
-                      {selectedConv.otherUser.photo ? (
+                      {selectedConv.otherUser?.photo ? (
                         <Image
                           src={selectedConv.otherUser.photo}
                           alt={selectedConv.otherUser.name}
@@ -441,12 +573,34 @@ export function ChatPageClient() {
                     const decText = decryptedMessages[m.id] || "🔒 Pesan Terenkripsi";
 
                     let verifPayload: any = null;
+                    let mediaMsgPayload: any = null;
+
                     try {
-                      const raw = m.content && m.content.startsWith('{"type":"tsg_verification_request"') ? m.content : decText.startsWith('{"type":"tsg_verification_request"') ? decText : null;
+                      const raw =
+                        m.content && m.content.startsWith('{"type":"tsg_verification_request"')
+                          ? m.content
+                          : decText.startsWith('{"type":"tsg_verification_request"')
+                            ? decText
+                            : null;
                       if (raw) {
                         const parsed = JSON.parse(raw);
                         if (parsed.type === "tsg_verification_request") {
                           verifPayload = parsed;
+                        }
+                      }
+                    } catch (e) {}
+
+                    try {
+                      const rawMedia =
+                        m.content && m.content.startsWith('{"type":"chat_media_message"')
+                          ? m.content
+                          : decText.startsWith('{"type":"chat_media_message"')
+                            ? decText
+                            : null;
+                      if (rawMedia) {
+                        const parsed = JSON.parse(rawMedia);
+                        if (parsed.type === "chat_media_message") {
+                          mediaMsgPayload = parsed;
                         }
                       }
                     } catch (e) {}
@@ -461,6 +615,46 @@ export function ChatPageClient() {
                               isCreator={profile?.generation?.toLowerCase() === "creator"}
                               currentUserNickname={publicAccount?.nickname || profile?.name}
                             />
+                          </div>
+                          <span className="text-[9px] text-white/30 mt-1 px-1">
+                            {new Date(m.created_at).toLocaleTimeString("id-ID", {
+                              hour: "2-digit",
+                              minute: "2-digit",
+                            })}
+                          </span>
+                        </div>
+                      );
+                    }
+
+                    if (mediaMsgPayload) {
+                      return (
+                        <div key={m.id} className={`flex flex-col ${isMe ? "items-end" : "items-start"}`}>
+                          <div
+                            className={`max-w-[85%] sm:max-w-[75%] rounded-2xl p-3 text-xs leading-relaxed break-words whitespace-pre-wrap ${
+                              isMe
+                                ? "bg-blue-600 text-white rounded-br-none shadow-md shadow-blue-600/20"
+                                : "bg-slate-800 text-slate-100 rounded-bl-none border border-white/10"
+                            }`}
+                          >
+                            <SocialMediaRenderer attachments={mediaMsgPayload.attachments} />
+                            {mediaMsgPayload.linkUrl && (
+                              <a
+                                href={
+                                  mediaMsgPayload.linkUrl.startsWith("http")
+                                    ? mediaMsgPayload.linkUrl
+                                    : `https://${mediaMsgPayload.linkUrl}`
+                                }
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="flex items-center gap-2 text-[11px] text-blue-200 hover:text-white bg-black/20 border border-white/15 rounded-xl px-3 py-2 mb-2 break-all"
+                              >
+                                <ExternalLink className="h-3.5 w-3.5 shrink-0" />
+                                <span className="truncate">
+                                  {mediaMsgPayload.linkUrl.replace(/^https?:\/\//, "")}
+                                </span>
+                              </a>
+                            )}
+                            {mediaMsgPayload.text && <p>{mediaMsgPayload.text}</p>}
                           </div>
                           <span className="text-[9px] text-white/30 mt-1 px-1">
                             {new Date(m.created_at).toLocaleTimeString("id-ID", {
@@ -498,31 +692,143 @@ export function ChatPageClient() {
                   <div ref={chatEndRef} />
                 </div>
 
-                {/* Chat Input Bar */}
-                <form
-                  onSubmit={handleSendMessage}
-                  className="p-3 border-t border-white/10 bg-slate-900/90 flex gap-2 items-center"
-                >
-                  <input
-                    type="text"
-                    value={inputMessage}
-                    onChange={(e) => setInputMessage(e.target.value)}
-                    placeholder="Tulis pesan terenkripsi..."
-                    disabled={isSending}
-                    className="flex-1 rounded-xl border border-white/15 bg-white/5 px-4 py-2.5 text-xs text-white placeholder-white/30 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 disabled:opacity-50"
-                  />
-                  <button
-                    type="submit"
-                    disabled={isSending || !inputMessage.trim()}
-                    className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-blue-500 hover:bg-blue-400 text-slate-950 transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
-                  >
-                    {isSending ? (
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                    ) : (
-                      <Send className="h-4 w-4" />
+                {/* Attachments & Link Preview Area */}
+                {(chatFiles.length > 0 || chatLinkUrl) && !isVirtualTsg && (
+                  <div className="px-3 pt-2 bg-slate-950/80 border-t border-white/10 flex flex-wrap gap-2 items-center">
+                    {chatFiles.map((item, idx) => (
+                      <div
+                        key={`chat-file-${idx}`}
+                        className="relative group flex items-center gap-2 bg-slate-900 border border-white/15 rounded-xl p-2 text-xs text-white max-w-[200px]"
+                      >
+                        <button
+                          type="button"
+                          onClick={() => handleRemoveChatFile(idx)}
+                          className="absolute -top-1.5 -right-1.5 flex h-5 w-5 items-center justify-center rounded-full bg-rose-500 text-white hover:bg-rose-600"
+                        >
+                          <X className="h-3 w-3" />
+                        </button>
+                        {item.previewUrl && item.detected.category === "image" ? (
+                          <div className="relative h-8 w-8 rounded-lg overflow-hidden shrink-0 bg-slate-950">
+                            {/* eslint-disable-next-line @next/next/no-img-element */}
+                            <img src={item.previewUrl} alt="prev" className="h-full w-full object-cover" />
+                          </div>
+                        ) : (
+                          <div className="flex h-8 w-8 rounded-lg shrink-0 items-center justify-center bg-blue-500/20 text-blue-300">
+                            {item.detected.category === "audio" ? (
+                              <Music className="h-4 w-4" />
+                            ) : item.detected.category === "video" ? (
+                              <Film className="h-4 w-4" />
+                            ) : (
+                              <FileText className="h-4 w-4" />
+                            )}
+                          </div>
+                        )}
+                        <span className="truncate">{item.file.name}</span>
+                      </div>
+                    ))}
+
+                    {chatLinkUrl && (
+                      <div className="relative flex items-center gap-2 bg-blue-500/10 border border-blue-500/30 rounded-xl px-3 py-1.5 text-xs text-blue-200">
+                        <button
+                          type="button"
+                          onClick={() => setChatLinkUrl("")}
+                          className="absolute -top-1.5 -right-1.5 flex h-5 w-5 items-center justify-center rounded-full bg-rose-500 text-white hover:bg-rose-600"
+                        >
+                          <X className="h-3 w-3" />
+                        </button>
+                        <LinkIcon className="h-3.5 w-3.5 shrink-0 text-blue-400" />
+                        <span className="truncate max-w-[180px]">{chatLinkUrl}</span>
+                      </div>
                     )}
-                  </button>
-                </form>
+                  </div>
+                )}
+
+                {/* Chat Input Bar */}
+                <div className="relative">
+                  {/* Attachment Popup Menu */}
+                  <AnimatePresence>
+                    {showAttachmentMenu && !isVirtualTsg && (
+                      <motion.div
+                        initial={{ opacity: 0, y: 10, scale: 0.95 }}
+                        animate={{ opacity: 1, y: 0, scale: 1 }}
+                        exit={{ opacity: 0, y: 10, scale: 0.95 }}
+                        className="absolute bottom-full left-3 mb-2 z-20 w-56 rounded-2xl bg-slate-950 border border-white/20 p-2 shadow-2xl flex flex-col gap-1 text-white"
+                      >
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setShowAttachmentMenu(false);
+                            chatFileInputRef.current?.click();
+                          }}
+                          className="flex items-center gap-2.5 rounded-xl px-3 py-2 text-xs font-semibold hover:bg-white/10 transition text-left cursor-pointer"
+                        >
+                          <Paperclip className="w-4 h-4 text-emerald-400" />
+                          <span>Unggah File / Media ({chatFiles.length}/{MAX_FILES})</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setShowAttachmentMenu(false);
+                            setShowLinkModal(true);
+                          }}
+                          className="flex items-center gap-2.5 rounded-xl px-3 py-2 text-xs font-semibold hover:bg-white/10 transition text-left cursor-pointer"
+                        >
+                          <LinkIcon className="w-4 h-4 text-blue-400" />
+                          <span>Tambahkan Tautan Link</span>
+                        </button>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+
+                  <input
+                    type="file"
+                    multiple
+                    ref={chatFileInputRef}
+                    onChange={handleChatFileChange}
+                    className="hidden"
+                  />
+
+                  <form
+                    onSubmit={handleSendMessage}
+                    className="p-3 border-t border-white/10 bg-slate-900/90 flex gap-2 items-center"
+                  >
+                    {!isVirtualTsg && (
+                      <button
+                        type="button"
+                        onClick={() => setShowAttachmentMenu((prev) => !prev)}
+                        title="Tambah lampiran file atau tautan"
+                        className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-white/5 hover:bg-white/10 border border-white/15 text-white/80 hover:text-white transition cursor-pointer"
+                      >
+                        <Plus className={`w-5 h-5 transition-transform ${showAttachmentMenu ? "rotate-45" : ""}`} />
+                      </button>
+                    )}
+
+                    <input
+                      type="text"
+                      value={inputMessage}
+                      onChange={(e) => setInputMessage(e.target.value)}
+                      placeholder={
+                        isVirtualTsg
+                          ? "Kirim pesan teks ke Akun Resmi TSG..."
+                          : "Tulis pesan atau lampirkan file..."
+                      }
+                      disabled={isSending}
+                      className="flex-1 rounded-xl border border-white/15 bg-white/5 px-4 py-2.5 text-xs text-white placeholder-white/30 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 disabled:opacity-50"
+                    />
+
+                    <button
+                      type="submit"
+                      disabled={isSending || (!inputMessage.trim() && chatFiles.length === 0 && !chatLinkUrl.trim())}
+                      className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-blue-500 hover:bg-blue-400 text-slate-950 transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed shadow-lg shadow-blue-500/20"
+                    >
+                      {isSending ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <Send className="h-4 w-4" />
+                      )}
+                    </button>
+                  </form>
+                </div>
               </>
             ) : (
               <div className="flex-1 flex flex-col items-center justify-center text-center p-6">
@@ -536,6 +842,59 @@ export function ChatPageClient() {
           </div>
         </div>
       </div>
+
+      {/* Link Input Modal */}
+      <AnimatePresence>
+        {showLinkModal && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[99999] flex items-center justify-center bg-black/80 backdrop-blur-md p-4 overflow-y-auto"
+          >
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0, y: 20 }}
+              animate={{ scale: 1, opacity: 1, y: 0 }}
+              exit={{ scale: 0.95, opacity: 0, y: 20 }}
+              className="relative w-full max-w-md rounded-3xl bg-slate-900 border border-white/20 p-6 shadow-2xl text-white"
+            >
+              <h3 className="text-base font-bold mb-2">Tambahkan Tautan Link</h3>
+              <p className="text-xs text-white/60 mb-4">
+                Masukkan URL tautan yang ingin Anda sertakan dalam pesan.
+              </p>
+              <input
+                type="url"
+                value={tempLinkUrl}
+                onChange={(e) => setTempLinkUrl(e.target.value)}
+                placeholder="https://contoh.com"
+                className="w-full rounded-xl border border-white/15 bg-white/5 px-4 py-2.5 text-xs text-white placeholder-white/30 focus:border-blue-500 focus:outline-none mb-4"
+              />
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => setShowLinkModal(false)}
+                  className="flex-1 rounded-xl border border-white/15 bg-white/5 py-2.5 text-xs font-semibold text-white/80 hover:bg-white/10"
+                >
+                  Batal
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (tempLinkUrl.trim()) {
+                      setChatLinkUrl(tempLinkUrl.trim());
+                      setTempLinkUrl("");
+                    }
+                    setShowLinkModal(false);
+                  }}
+                  className="flex-1 rounded-xl bg-blue-500 hover:bg-blue-400 py-2.5 text-xs font-semibold text-slate-950"
+                >
+                  Sematkan Link
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Modal Cari Pengguna */}
       <AnimatePresence>
@@ -624,10 +983,10 @@ export function ChatPageClient() {
                           />
                         ) : (
                           <FaUser className="h-4 w-4 text-white/60" />
-                        )}
+                    )}
                       </div>
                       <div className="min-w-0">
-                        <h4 className="text-xs font-bold text-white truncate flex items-center gap-1">
+                        <h4 className="text-xs font-bold text-white truncate flex items-center gap-1.5">
                           <span>{u.name}</span>
                           {u.show_tsg_member && (
                             <span className="text-[9px] px-1.5 py-0.2 rounded-full bg-blue-500/20 text-blue-300 font-bold">
@@ -635,16 +994,16 @@ export function ChatPageClient() {
                             </span>
                           )}
                         </h4>
-                        <p className="text-[10px] text-blue-400 truncate">@{u.nickname}</p>
+                        <p className="text-[10px] text-white/50 truncate">@{u.nickname}</p>
                       </div>
                     </div>
 
                     <button
                       type="button"
                       onClick={() => handleStartChatWithUser(u)}
-                      className="px-3 py-1.5 rounded-xl bg-blue-500 hover:bg-blue-400 text-slate-950 font-bold text-xs transition cursor-pointer shrink-0"
+                      className="ml-2 flex items-center gap-1 rounded-xl bg-blue-500/20 hover:bg-blue-500/30 border border-blue-500/40 px-3 py-1.5 text-xs font-semibold text-blue-300 transition cursor-pointer shrink-0"
                     >
-                      Chat
+                      <span>Chat</span>
                     </button>
                   </div>
                 ))}

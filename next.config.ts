@@ -4,6 +4,7 @@ const nextConfig: NextConfig = {
   allowedDevOrigins: ["*.trycloudflare.com"],
   experimental: {
     serverActions: {
+      bodySizeLimit: "105mb",
       allowedOrigins: [
         "localhost:3000",
         "localhost:3333",

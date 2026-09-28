@@ -19,6 +19,12 @@ import {
   ChevronLeft,
   ChevronRight,
   ChevronsRight,
+  Upload,
+  FileText,
+  Film,
+  Music,
+  Archive,
+  File,
 } from "lucide-react";
 import { getPublicAccountAction } from "@/actions/publicAccountActions";
 import {
@@ -26,15 +32,20 @@ import {
   createSocialPostAction,
   createSocialCommentAction,
   deleteSocialPostAction,
+  uploadSocialFilesAction,
 } from "@/actions/socialActions";
 import { PublicProfilePreviewModal } from "@/components/auth/PublicProfilePreviewModal";
 import { useScrollLock } from "@/hooks/useScrollLock";
+import { detectFileType } from "@/lib/fileTypeDetector";
+import { SocialMediaRenderer } from "@/components/social/SocialMediaRenderer";
 
 interface SocialPageClientProps {
   initialPosts: any[];
 }
 
 const POSTS_PER_PAGE = 10;
+const MAX_FILES = 10;
+const MAX_TOTAL_SIZE = 100 * 1024 * 1024; // 100 MB
 
 export function SocialPageClient({ initialPosts }: SocialPageClientProps) {
   const router = useRouter();
@@ -45,6 +56,9 @@ export function SocialPageClient({ initialPosts }: SocialPageClientProps) {
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [content, setContent] = useState("");
   const [linkUrl, setLinkUrl] = useState("");
+  const [selectedFiles, setSelectedFiles] = useState<
+    { file: File; previewUrl?: string; detected: any }[]
+  >([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [profile, setProfile] = useState<any>(null);
   const [publicAccount, setPublicAccount] = useState<any>(null);
@@ -99,7 +113,6 @@ export function SocialPageClient({ initialPosts }: SocialPageClientProps) {
 
   useEffect(() => {
     if (!profile?.id) return;
-    // Auto load posts every 1 minute (60 seconds)
     const interval = setInterval(() => {
       fetchPosts(currentPage, true);
     }, 60000);
@@ -127,10 +140,69 @@ export function SocialPageClient({ initialPosts }: SocialPageClientProps) {
     setIsRefreshing(false);
   };
 
+  const processFiles = async (newFilesArray: File[]) => {
+    setErrorMsg("");
+    if (!newFilesArray || newFilesArray.length === 0) return;
+
+    if (selectedFiles.length + newFilesArray.length > MAX_FILES) {
+      setErrorMsg(`Maksimal ${MAX_FILES} file per postingan.`);
+      return;
+    }
+
+    let currentTotalSize = selectedFiles.reduce((acc, curr) => acc + curr.file.size, 0);
+    for (const f of newFilesArray) {
+      currentTotalSize += f.size;
+    }
+
+    if (currentTotalSize > MAX_TOTAL_SIZE) {
+      setErrorMsg("Total ukuran file melebihi batas maksimal 100MB.");
+      return;
+    }
+
+    const processed: { file: File; previewUrl?: string; detected: any }[] = [];
+    for (const file of newFilesArray) {
+      const detected = await detectFileType(file);
+      let previewUrl: string | undefined = undefined;
+      if (detected.category === "image" || detected.category === "audio") {
+        previewUrl = URL.createObjectURL(file);
+      }
+      processed.push({ file, previewUrl, detected });
+    }
+
+    setSelectedFiles((prev) => [...prev, ...processed]);
+  };
+
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (files) {
+      await processFiles(Array.from(files));
+    }
+    e.target.value = "";
+  };
+
+  const handleDrop = async (e: React.DragEvent<HTMLLabelElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const files = e.dataTransfer.files;
+    if (files) {
+      await processFiles(Array.from(files));
+    }
+  };
+
+  const handleRemoveFile = (index: number) => {
+    setSelectedFiles((prev) => {
+      const target = prev[index];
+      if (target?.previewUrl) {
+        URL.revokeObjectURL(target.previewUrl);
+      }
+      return prev.filter((_, i) => i !== index);
+    });
+  };
+
   const handleCreatePost = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!content.trim()) {
-      setErrorMsg("Mohon isi konten postingan.");
+    if (!content.trim() && selectedFiles.length === 0) {
+      setErrorMsg("Mohon isi konten atau unggah minimal 1 file.");
       return;
     }
     if (!profile?.id) {
@@ -139,22 +211,48 @@ export function SocialPageClient({ initialPosts }: SocialPageClientProps) {
     }
     setIsSubmitting(true);
     setErrorMsg("");
+
     try {
+      let attachments: any[] = [];
+
+      if (selectedFiles.length > 0) {
+        const formData = new FormData();
+        selectedFiles.forEach((item) => {
+          formData.append("files", item.file, item.file.name);
+        });
+
+        const uploadRes: any = await uploadSocialFilesAction(formData);
+        if (uploadRes?.error) {
+          setErrorMsg(uploadRes.error);
+          setIsSubmitting(false);
+          return;
+        }
+
+        attachments = (uploadRes.files || []).map((f: any, i: number) => ({
+          ...f,
+          type: selectedFiles[i]?.detected.category || "other",
+        }));
+      }
+
       const res: any = await createSocialPostAction({
         realAccountId: profile.id,
-        content: content.trim(),
+        content: content.trim() || "(Lampiran file)",
         linkUrl: linkUrl.trim() || undefined,
+        attachments,
       });
+
       if (res?.error) {
         setErrorMsg(res.error);
       } else {
         setContent("");
         setLinkUrl("");
+        selectedFiles.forEach((f) => f.previewUrl && URL.revokeObjectURL(f.previewUrl));
+        setSelectedFiles([]);
         setShowCreateForm(false);
         if (currentPage === 0) {
           await fetchPosts(0);
         } else {
-          setCurrentPage(0); // Jump to newest page
+          setCurrentPage(0);
         }
       }
     } catch (err: any) {
@@ -212,6 +310,7 @@ export function SocialPageClient({ initialPosts }: SocialPageClientProps) {
     profile?.name?.toLowerCase() === "creator";
 
   const totalPages = Math.ceil(totalCount / POSTS_PER_PAGE) || 1;
+  const currentTotalFileSize = selectedFiles.reduce((acc, curr) => acc + curr.file.size, 0);
 
   return (
     <div className="bg-grid relative overflow-hidden pb-16 pt-36 min-h-screen">
@@ -265,7 +364,7 @@ export function SocialPageClient({ initialPosts }: SocialPageClientProps) {
                 initial={{ scale: 0.95, opacity: 0, y: 20 }}
                 animate={{ scale: 1, opacity: 1, y: 0 }}
                 exit={{ scale: 0.95, opacity: 0, y: 20 }}
-                className="relative my-auto w-full max-w-lg rounded-3xl bg-slate-900 border border-white/20 p-6 sm:p-7 shadow-2xl text-white"
+                className="relative my-auto w-full max-w-lg rounded-3xl bg-slate-900 border border-white/20 p-6 sm:p-7 shadow-2xl text-white max-h-[90vh] overflow-y-auto"
               >
                 <button
                   type="button"
@@ -283,7 +382,7 @@ export function SocialPageClient({ initialPosts }: SocialPageClientProps) {
                   <div>
                     <h3 className="text-lg font-bold">Buat Postingan Baru</h3>
                     <p className="text-xs text-white/65">
-                      Bagikan cerita atau tautan menarik ke komunitas TSG.
+                      Bagikan cerita, foto, video, atau file ke komunitas TSG.
                     </p>
                   </div>
                 </div>
@@ -302,11 +401,112 @@ export function SocialPageClient({ initialPosts }: SocialPageClientProps) {
                       value={content}
                       onChange={(e) => setContent(e.target.value)}
                       placeholder="Apa yang ingin kamu bagikan?"
-                      rows={4}
+                      rows={3}
                       disabled={isSubmitting}
                       className="w-full rounded-xl border border-white/15 bg-white/5 px-4 py-2.5 text-sm text-white placeholder-white/30 focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500 disabled:opacity-50 resize-y"
                     />
                   </div>
+
+                  {/* File Upload Section */}
+                  <div>
+                    <div className="flex items-center justify-between mb-1.5">
+                      <label className="block text-xs font-medium text-slate-300">
+                        Lampiran File / Gambar / Video (Maks 10 file, total 100MB)
+                      </label>
+                      <span className="text-[10px] text-white/50">
+                        {selectedFiles.length}/{MAX_FILES} file ({(currentTotalFileSize / 1024 / 1024).toFixed(1)} MB)
+                      </span>
+                    </div>
+
+                    <label
+                      onDragOver={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                      }}
+                      onDragEnter={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                      }}
+                      onDrop={handleDrop}
+                      className="flex flex-col items-center justify-center rounded-2xl border-2 border-dashed border-white/25 bg-white/5 p-4 text-center hover:bg-white/10 transition-colors cursor-pointer"
+                    >
+                      <Upload className="h-6 w-6 text-emerald-400 mb-2" />
+                      <span className="text-xs font-semibold text-white">
+                        Klik untuk pilih file atau seret ke sini
+                      </span>
+                      <span className="text-[10px] text-white/50 mt-1">
+                        (Gambar, Video, Audio, Dokumen, dll)
+                      </span>
+                      <input
+                        type="file"
+                        multiple
+                        disabled={isSubmitting || selectedFiles.length >= MAX_FILES}
+                        onChange={handleFileChange}
+                        className="hidden"
+                      />
+                    </label>
+
+                    {selectedFiles.length > 0 && (
+                      <div className="mt-3 grid grid-cols-2 sm:grid-cols-3 gap-2 max-h-44 overflow-y-auto pr-1">
+                        {selectedFiles.map((item, idx) => (
+                          <div
+                            key={`sel-${idx}`}
+                            className="relative group flex flex-col items-center justify-center rounded-xl border border-white/15 bg-slate-950 p-2 text-center overflow-hidden"
+                          >
+                            <button
+                              type="button"
+                              onClick={() => handleRemoveFile(idx)}
+                              disabled={isSubmitting}
+                              className="absolute top-1 right-1 z-10 flex h-6 w-6 items-center justify-center rounded-full bg-rose-500/80 text-white hover:bg-rose-600 transition"
+                            >
+                              <X className="h-3 w-3" />
+                            </button>
+
+                            {item.previewUrl && item.detected.category === "image" ? (
+                              <div className="relative h-16 w-full mb-1 rounded-lg overflow-hidden bg-slate-900">
+                                {/* eslint-disable-next-line @next/next/no-img-element */}
+                                <img
+                                  src={item.previewUrl}
+                                  alt="Preview"
+                                  className="h-full w-full object-cover"
+                                />
+                              </div>
+                            ) : item.detected.category === "audio" ? (
+                              <div className="flex h-16 w-full flex-col items-center justify-center mb-1 rounded-lg bg-emerald-500/10 p-2 text-emerald-300">
+                                <Music className="h-5 w-5 shrink-0 mb-1" />
+                                <audio
+                                  src={item.previewUrl}
+                                  controls
+                                  className="h-8 w-full max-w-full rounded-lg"
+                                  style={{ fontSize: "10px" }}
+                                />
+                              </div>
+                            ) : item.detected.category === "video" ? (
+                              <div className="flex h-16 w-full items-center justify-center mb-1 rounded-lg bg-blue-500/10 text-blue-300">
+                                <Film className="h-6 w-6" />
+                              </div>
+                            ) : (
+                              <div className="flex h-16 w-full items-center justify-center mb-1 rounded-lg bg-emerald-500/10 text-emerald-300">
+                                {item.detected.category === "archive" ? (
+                                  <Archive className="h-6 w-6" />
+                                ) : (
+                                  <FileText className="h-6 w-6" />
+                                )}
+                              </div>
+                            )}
+
+                            <span className="text-[11px] font-medium text-white truncate w-full px-1">
+                              {item.file.name}
+                            </span>
+                            <span className="text-[9px] uppercase tracking-wider text-emerald-400 font-bold">
+                              {item.detected.category} • {(item.file.size / 1024 / 1024).toFixed(1)}MB
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
                   <div>
                     <label className="block text-xs font-medium text-slate-300 mb-1.5">
                       Tautan / Link (Opsional)
@@ -328,13 +528,13 @@ export function SocialPageClient({ initialPosts }: SocialPageClientProps) {
                       type="button"
                       disabled={isSubmitting}
                       onClick={() => setShowCreateForm(false)}
-                      className="flex-1 rounded-xl border border-white/15 bg-white/5 py-3 text-sm font-semibold text-white/80 transition-colors hover:bg-white/10 hover:text-white cursor-pointer disabled:opacity-40"
+                      className="flex-1 rounded-xl border border-white/15 bg-white/5 py-3 text-sm font-semibold text-white/85 transition-colors hover:bg-white/10 hover:text-white cursor-pointer disabled:opacity-40"
                     >
                       Batal
                     </button>
                     <button
                       type="submit"
-                      disabled={isSubmitting || !content.trim()}
+                      disabled={isSubmitting || (!content.trim() && selectedFiles.length === 0)}
                       className="flex-1 flex items-center justify-center gap-2 rounded-xl bg-emerald-500 hover:bg-emerald-400 py-3 text-sm font-semibold text-slate-950 transition-all hover:scale-[1.02] active:scale-[0.98] cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
                     >
                       {isSubmitting ? (
@@ -342,7 +542,7 @@ export function SocialPageClient({ initialPosts }: SocialPageClientProps) {
                       ) : (
                         <Send className="h-4 w-4" />
                       )}
-                      <span>Kirim Postingan</span>
+                      <span>{isSubmitting ? "Mengunggah..." : "Kirim Postingan"}</span>
                     </button>
                   </div>
                 </form>
@@ -486,6 +686,13 @@ export function SocialPageClient({ initialPosts }: SocialPageClientProps) {
                 <p className="text-sm text-slate-200 leading-relaxed break-words whitespace-pre-wrap mb-3">
                   {post.content}
                 </p>
+
+                {/* Media Renderer (Images, Videos, Files streamable via Catbox) */}
+                <SocialMediaRenderer
+                  attachments={post.attachments}
+                  mediaUrl={post.media_url}
+                  mediaType={post.media_type}
+                />
 
                 {post.link_url && (
                   <a
@@ -668,7 +875,7 @@ export function SocialPageClient({ initialPosts }: SocialPageClientProps) {
       <PublicProfilePreviewModal
         isOpen={!!previewProfile}
         publicAccount={previewProfile}
-        defaultAvatarUrl={previewProfile?.avatar_url || ""}
+        defaultAvatarUrl={previewProfile?.avatar_url || previewProfile?.photo || ""}
         onClose={() => setPreviewProfile(null)}
       />
     </div>
