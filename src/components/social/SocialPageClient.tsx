@@ -38,6 +38,7 @@ import { PublicProfilePreviewModal } from "@/components/auth/PublicProfilePrevie
 import { useScrollLock } from "@/hooks/useScrollLock";
 import { detectFileType } from "@/lib/fileTypeDetector";
 import { SocialMediaRenderer } from "@/components/social/SocialMediaRenderer";
+import { useImageViewer } from "@/components/ui/ImageViewer";
 
 interface SocialPageClientProps {
   initialPosts: any[];
@@ -75,7 +76,21 @@ export function SocialPageClient({ initialPosts }: SocialPageClientProps) {
   const [postToDelete, setPostToDelete] = useState<any>(null);
   const [isDeleting, setIsDeleting] = useState(false);
 
-  useScrollLock(showCreateForm || !!postToDelete);
+  // Image viewer state
+  const [viewerUrl, setViewerUrl] = useState<string | null>(null);
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
+  const closeViewer = () => setViewerUrl(null);
+  useEffect(() => {
+    if (!viewerUrl) return;
+    const handleKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") closeViewer();
+    };
+    window.addEventListener("keydown", handleKey);
+    return () => window.removeEventListener("keydown", handleKey);
+  }, [viewerUrl]);
+
+  useScrollLock(showCreateForm || !!postToDelete || !!viewerUrl);
 
   useEffect(() => {
     async function verifyAuth() {
@@ -692,6 +707,7 @@ export function SocialPageClient({ initialPosts }: SocialPageClientProps) {
                   attachments={post.attachments}
                   mediaUrl={post.media_url}
                   mediaType={post.media_type}
+                  onImageClick={(url) => setViewerUrl(url)}
                 />
 
                 {post.link_url && (
@@ -878,6 +894,41 @@ export function SocialPageClient({ initialPosts }: SocialPageClientProps) {
         defaultAvatarUrl={previewProfile?.avatar_url || previewProfile?.photo || ""}
         onClose={() => setPreviewProfile(null)}
       />
+
+      {/* Fullscreen Image Viewer Modal */}
+      {mounted && viewerUrl && (
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          onClick={closeViewer}
+          className="fixed inset-0 z-[100000] flex items-center justify-center bg-black/90 backdrop-blur-md p-4 cursor-zoom-out"
+        >
+          <motion.div
+            initial={{ scale: 0.95, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            exit={{ scale: 0.95, opacity: 0 }}
+            onClick={(e) => e.stopPropagation()}
+            className="relative max-h-[90vh] max-w-[90vw] rounded-2xl overflow-hidden border border-white/20 bg-slate-950 shadow-2xl"
+          >
+            <button
+              type="button"
+              onClick={closeViewer}
+              aria-label="Tutup"
+              className="absolute right-3 top-3 z-10 flex h-9 w-9 items-center justify-center rounded-full bg-black/60 text-white/80 hover:bg-black/90 hover:text-white transition-colors cursor-pointer"
+            >
+              <X className="h-4 w-4" />
+            </button>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={viewerUrl}
+              alt="Foto penuh"
+              className="max-h-[90vh] max-w-[90vw] object-contain cursor-default"
+              crossOrigin="anonymous"
+            />
+          </motion.div>
+        </motion.div>
+      )}
     </div>
   );
 }

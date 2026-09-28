@@ -51,10 +51,12 @@ export function SocialMediaRenderer({
   attachments,
   mediaUrl,
   mediaType,
+  onImageClick,
 }: {
   attachments?: Attachment[];
   mediaUrl?: string;
   mediaType?: string;
+  onImageClick?: (url: string) => void;
 }) {
   let list: Attachment[] =
     Array.isArray(attachments) && attachments.length > 0
@@ -93,22 +95,20 @@ export function SocialMediaRenderer({
           }
         >
           {images.map((att, i) => (
-            <a
+            <div
               key={`img-${i}`}
-              href={att.url}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="block overflow-hidden rounded-2xl border border-white/10 bg-slate-950 hover:opacity-95 transition-opacity"
+              onClick={() => onImageClick?.(att.url)}
+              className="block overflow-hidden rounded-2xl border border-white/10 bg-slate-950 hover:opacity-95 transition-opacity cursor-pointer group/img relative"
             >
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
                 src={att.url}
                 alt={att.name || `Gambar ${i + 1}`}
                 loading="lazy"
-                className={`w-full object-cover ${images.length === 1 ? "max-h-[480px]" : "aspect-square"}`}
+                className={`w-full object-cover group-hover/img:scale-[1.02] transition-transform ${images.length === 1 ? "max-h-[480px]" : "aspect-square"}`}
                 crossOrigin="anonymous"
               />
-            </a>
+            </div>
           ))}
         </div>
       )}

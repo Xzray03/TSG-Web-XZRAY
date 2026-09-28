@@ -100,10 +100,24 @@ export function ChatPageClient() {
   // Profile Preview Modal
   const [previewProfile, setPreviewProfile] = useState<any>(null);
 
+  // Image viewer state
+  const [viewerUrl, setViewerUrl] = useState<string | null>(null);
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
+  const closeViewer = () => setViewerUrl(null);
+  useEffect(() => {
+    if (!viewerUrl) return;
+    const handleKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") closeViewer();
+    };
+    window.addEventListener("keydown", handleKey);
+    return () => window.removeEventListener("keydown", handleKey);
+  }, [viewerUrl]);
+
   const chatEndRef = useRef<HTMLDivElement>(null);
   const chatFileInputRef = useRef<HTMLInputElement>(null);
 
-  useScrollLock(isSearchModalOpen || !!previewProfile || showLinkModal);
+  useScrollLock(isSearchModalOpen || !!previewProfile || showLinkModal || !!viewerUrl);
 
   useEffect(() => {
     async function verifyAuthAndLoad() {
@@ -636,7 +650,10 @@ export function ChatPageClient() {
                                 : "bg-slate-800 text-slate-100 rounded-bl-none border border-white/10"
                             }`}
                           >
-                            <SocialMediaRenderer attachments={mediaMsgPayload.attachments} />
+                            <SocialMediaRenderer
+                              attachments={mediaMsgPayload.attachments}
+                              onImageClick={(url) => setViewerUrl(url)}
+                            />
                             {mediaMsgPayload.linkUrl && (
                               <a
                                 href={
@@ -1019,6 +1036,41 @@ export function ChatPageClient() {
         defaultAvatarUrl={previewProfile?.avatar_url || previewProfile?.photo || ""}
         onClose={() => setPreviewProfile(null)}
       />
+
+      {/* Fullscreen Image Viewer Modal */}
+      {mounted && viewerUrl && (
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          onClick={closeViewer}
+          className="fixed inset-0 z-[100000] flex items-center justify-center bg-black/90 backdrop-blur-md p-4 cursor-zoom-out"
+        >
+          <motion.div
+            initial={{ scale: 0.95, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            exit={{ scale: 0.95, opacity: 0 }}
+            onClick={(e) => e.stopPropagation()}
+            className="relative max-h-[90vh] max-w-[90vw] rounded-2xl overflow-hidden border border-white/20 bg-slate-950 shadow-2xl"
+          >
+            <button
+              type="button"
+              onClick={closeViewer}
+              aria-label="Tutup"
+              className="absolute right-3 top-3 z-10 flex h-9 w-9 items-center justify-center rounded-full bg-black/60 text-white/80 hover:bg-black/90 hover:text-white transition-colors cursor-pointer"
+            >
+              <X className="h-4 w-4" />
+            </button>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={viewerUrl}
+              alt="Foto penuh"
+              className="max-h-[90vh] max-w-[90vw] object-contain cursor-default"
+              crossOrigin="anonymous"
+            />
+          </motion.div>
+        </motion.div>
+      )}
     </div>
   );
 }
