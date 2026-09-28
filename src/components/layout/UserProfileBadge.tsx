@@ -30,6 +30,7 @@ import ManagePublicAccountModal from "@/components/auth/ManagePublicAccountModal
 import { PublicProfilePreviewModal } from "@/components/auth/PublicProfilePreviewModal";
 import { LoginVerifURLModal } from "@/components/auth/LoginVerifURLModal";
 import { LogoModal } from "@/components/layout/LogoModal";
+import { TSGRegistrationVerifModal } from "@/components/auth/TSGRegistrationVerifModal";
 import { getOrCreateDeviceKey } from "@/lib/deviceKeyManager";
 import { useSessionHeartbeat } from "@/hooks/useSessionHeartbeat";
 import { useScrollLock } from "@/hooks/useScrollLock";
@@ -96,6 +97,7 @@ export function UserProfileBadge() {
   const [isTsgMemberBlockModalOpen, setIsTsgMemberBlockModalOpen] =
     useState(false);
   const [isLogoModalOpen, setIsLogoModalOpen] = useState(false);
+  const [isTsgVerifOpen, setIsTsgVerifOpen] = useState(false);
 
   const [isLoginOtpModalOpen, setIsLoginOtpModalOpen] = useState(false);
   const [pendingLoginProfile, setPendingLoginProfile] =
@@ -218,24 +220,19 @@ export function UserProfileBadge() {
                 // Berbeda: Ambil dari Supabase & perbarui cache di localStorage
                 const data: any = await checkAccountAction(parsed.name.trim());
                 if (data && !data.error && (data.id || data.photo || data.generation || data.email)) {
-                  setProfile((prev) => {
-                    const updated: UserProfile = {
-                      ...prev,
-                      id: data.id || prev.id,
-                      name: data.tsgInfo?.name || prev.name || parsed.name,
-                      generation: data.generation || prev.generation || "",
-                      iconDataUrl: data.photo || prev.iconDataUrl || "",
-                      email: data.email || prev.email || "",
-                      isTsgMember: typeof data.isTsgMember === "boolean" ? data.isTsgMember : prev.isTsgMember,
-                      authMethod: data.authMethod || prev.authMethod,
-                      createdAt: data.createdAt || prev.createdAt,
-                    };
-                    localStorage.setItem("tsg_user_profile", JSON.stringify(updated));
-                    if (updated.id) {
-                      fetchPublicAccountInfo(updated.id);
-                    }
-                    return updated;
-                  });
+                  const updated: UserProfile = {
+                    ...parsed,
+                    id: data.id || parsed.id,
+                    name: data.tsgInfo?.name || parsed.name,
+                    generation: data.generation || parsed.generation || "",
+                    iconDataUrl: data.photo || parsed.iconDataUrl || "",
+                    email: data.email || parsed.email || "",
+                    isTsgMember: typeof data.isTsgMember === "boolean" ? data.isTsgMember : parsed.isTsgMember,
+                    authMethod: data.authMethod || parsed.authMethod,
+                    createdAt: data.createdAt || parsed.createdAt,
+                  };
+                  localStorage.setItem("tsg_user_profile", JSON.stringify(updated));
+                  setProfile(updated);
                 }
               }
             } catch {}
@@ -333,25 +330,27 @@ export function UserProfileBadge() {
     if (profile.id) {
       fetchPublicAccountInfo(profile.id);
     } else if (profile.name) {
-      checkAccountAction(profile.name.trim())
+      const nameSnapshot = profile.name;
+      checkAccountAction(nameSnapshot.trim())
         .then((data: any) => {
           if (data && (data.id || data.photo || data.generation)) {
-            const updated = {
-              ...profile,
-              id: data.id || profile.id,
-              generation: data.generation || profile.generation,
-              iconDataUrl: data.photo || profile.iconDataUrl,
-              createdAt: data.createdAt || profile.createdAt,
-            };
-            setProfile(updated);
-            localStorage.setItem("tsg_user_profile", JSON.stringify(updated));
-            if (data.id) {
-              fetchPublicAccountInfo(data.id);
-            }
+            setProfile((prev) => {
+              if (prev.id === (data.id || prev.id)) return prev;
+              const updated = {
+                ...prev,
+                id: data.id || prev.id,
+                generation: data.generation || prev.generation,
+                iconDataUrl: data.photo || prev.iconDataUrl,
+                createdAt: data.createdAt || prev.createdAt,
+              };
+              localStorage.setItem("tsg_user_profile", JSON.stringify(updated));
+              return updated;
+            });
           }
         })
         .catch(() => {});
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [profile.id, profile.name]);
 
   const handleStartVerification = async () => {
@@ -392,9 +391,13 @@ export function UserProfileBadge() {
       setLoginPreferencesState(data.loginPreferences || null);
 
       if (!data.exists) {
-        // AKUN BELUM ADA: Tampilkan Pop-Up Pilihan Metode Autentikasi
+        // AKUN BELUM ADA: Cek apakah Anggota TSG untuk Verifikasi Pendaftaran
         setAuthMode("register");
-        setIsChoiceModalOpen(true);
+        if (isTsgMemberCheckbox && data.isTsgMember) {
+          setIsTsgVerifOpen(true);
+        } else {
+          setIsChoiceModalOpen(true);
+        }
       } else {
         // AKUN SUDAH ADA: Buka Modal Sesuai Preferensi Login Akun
         setAuthMode("login");
@@ -976,6 +979,18 @@ export function UserProfileBadge() {
         accountData={accountDataState}
         onClose={() => setIsFaceModalOpen(false)}
         onVerified={handleAuthSuccess}
+      />
+
+      {/* Modal Verifikasi Pendaftaran Anggota TSG */}
+      <TSGRegistrationVerifModal
+        isOpen={isTsgVerifOpen}
+        name={tempName.trim()}
+        generation={tempGen || tsgInfoState?.categoryName || "Member"}
+        onClose={() => setIsTsgVerifOpen(false)}
+        onApproved={() => {
+          setIsTsgVerifOpen(false);
+          setIsChoiceModalOpen(true);
+        }}
       />
 
       {/* Modal Autentikasi Password & Captcha */}

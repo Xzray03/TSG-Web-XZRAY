@@ -27,6 +27,7 @@ import {
 import { encryptChatMessage, decryptChatMessage } from "@/lib/e2ee";
 import { PublicProfilePreviewModal } from "@/components/auth/PublicProfilePreviewModal";
 import { useScrollLock } from "@/hooks/useScrollLock";
+import { TsgVerificationCard } from "@/components/chat/TsgVerificationCard";
 
 export function ChatPageClient() {
   const router = useRouter();
@@ -336,8 +337,13 @@ export function ChatPageClient() {
 
                     <div className="flex-1 min-w-0">
                       <div className="flex justify-between items-center mb-0.5">
-                        <span className="text-xs font-bold text-white truncate">
-                          {c.otherUser.name}
+                        <span className="text-xs font-bold text-white truncate flex items-center gap-1.5">
+                          <span>{c.otherUser.name}</span>
+                          {c.otherUser.badge && (
+                            <span className="text-[9px] px-1.5 py-0.2 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/30 font-bold shrink-0">
+                              {c.otherUser.badge}
+                            </span>
+                          )}
                         </span>
                         {c.last_message_at && (
                           <span className="text-[10px] text-white/40 shrink-0">
@@ -349,7 +355,7 @@ export function ChatPageClient() {
                         )}
                       </div>
                       <p className="text-xs text-white/50 truncate flex items-center gap-1">
-                        <span>{lastMsgText}</span>
+                        <span>{lastMsgText.startsWith('{"type":"tsg_verification_request"') ? "📋 Permohonan Pendaftaran Anggota TSG" : lastMsgText}</span>
                       </p>
                     </div>
                   </div>
@@ -399,11 +405,15 @@ export function ChatPageClient() {
                     >
                       <h3 className="text-sm font-bold text-white truncate flex items-center gap-1.5">
                         <span>{selectedConv.otherUser.name}</span>
-                        {selectedConv.otherUser.is_tsg_member && (
+                        {selectedConv.otherUser.badge ? (
+                          <span className="text-[9px] px-1.5 py-0.2 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/30 font-bold">
+                            {selectedConv.otherUser.badge}
+                          </span>
+                        ) : selectedConv.otherUser.is_tsg_member ? (
                           <span className="text-[9px] px-1.5 py-0.2 rounded-full bg-blue-500/20 text-blue-300 font-bold">
                             TSG
                           </span>
-                        )}
+                        ) : null}
                       </h3>
                       <p className="text-[10px] text-white/50 truncate">
                         @{selectedConv.otherUser.nickname || "user"}
@@ -429,6 +439,33 @@ export function ChatPageClient() {
                   {messages.map((m) => {
                     const isMe = m.sender_id === profile.id;
                     const decText = decryptedMessages[m.id] || "🔒 Pesan Terenkripsi";
+
+                    let verifPayload: any = null;
+                    try {
+                      const raw = m.content && m.content.startsWith('{"type":"tsg_verification_request"') ? m.content : decText.startsWith('{"type":"tsg_verification_request"') ? decText : null;
+                      if (raw) {
+                        const parsed = JSON.parse(raw);
+                        if (parsed.type === "tsg_verification_request") {
+                          verifPayload = parsed;
+                        }
+                      }
+                    } catch (e) {}
+
+                    if (verifPayload) {
+                      return (
+                        <div key={m.id} className={`flex flex-col ${isMe ? "items-end" : "items-start"}`}>
+                          <div className="max-w-[92%] sm:max-w-[80%]">
+                            <TsgVerificationCard payload={verifPayload} currentUserId={profile.id} isCreator={profile?.generation?.toLowerCase() === "creator"} />
+                          </div>
+                          <span className="text-[9px] text-white/30 mt-1 px-1">
+                            {new Date(m.created_at).toLocaleTimeString("id-ID", {
+                              hour: "2-digit",
+                              minute: "2-digit",
+                            })}
+                          </span>
+                        </div>
+                      );
+                    }
 
                     return (
                       <div

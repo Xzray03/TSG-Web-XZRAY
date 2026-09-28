@@ -1,6 +1,7 @@
 "use server";
 
 import { createClient } from "@supabase/supabase-js";
+import { getSiteSettings } from "@/sanity/queries";
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || "";
 const supabaseServiceKey =
@@ -72,7 +73,7 @@ export async function getConversationsAction(realAccountId: string) {
       return { conversations: [], error: error.message };
     }
 
-    const conversations = (data || []).map((c: any) => {
+    let conversations = (data || []).map((c: any) => {
       const otherUser = c.user1_id === realAccountId ? c.user2 : c.user1;
       const otherPublic = Array.isArray(otherUser?.public_accounts)
         ? otherUser?.public_accounts[0]
@@ -96,9 +97,46 @@ export async function getConversationsAction(realAccountId: string) {
           social_media: otherPublic?.social_media || {},
           age: otherPublic?.age,
           created_at: otherUser?.created_at,
-        },
+          badge: (otherUser as any)?.id === "00000000-0000-0000-0000-000000000001" ? "AKUN RESMI" : undefined,
+          is_virtual: (otherUser as any)?.id === "00000000-0000-0000-0000-000000000001",
+        } as any,
       };
     });
+
+    const VIRTUAL_ID = "00000000-0000-0000-0000-000000000001";
+    let virtualConv: any = conversations.find((c: any) => c.otherUser.id === VIRTUAL_ID);
+
+    if (!virtualConv) {
+      virtualConv = {
+        id: "",
+        user1_id: realAccountId,
+        user2_id: VIRTUAL_ID,
+        last_message: "Akun Resmi Sistem The Smart Generation",
+        last_message_at: new Date().toISOString(),
+        otherUser: {
+          id: VIRTUAL_ID,
+          name: "The Smart Generation",
+          nickname: "tsg_official",
+          photo: "/logo.png",
+          is_tsg_member: true,
+          is_virtual: true,
+          badge: "AKUN RESMI",
+          generation: "Official",
+          bio: "Akun Resmi Sistem The Smart Generation",
+          website: "",
+          social_media: {},
+          age: null,
+          created_at: new Date().toISOString(),
+        },
+      };
+      conversations = [virtualConv, ...conversations];
+    } else {
+      if (virtualConv.otherUser) {
+        virtualConv.otherUser.badge = "AKUN RESMI";
+        virtualConv.otherUser.is_virtual = true;
+      }
+      conversations = [virtualConv, ...conversations.filter((c: any) => c.otherUser.id !== VIRTUAL_ID)];
+    }
 
     return { conversations };
   } catch (err: any) {
