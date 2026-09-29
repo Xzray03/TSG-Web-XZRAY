@@ -1,12 +1,10 @@
 "use server";
 
 import { createClient } from "@supabase/supabase-js";
+import { sanitize, sanitizeUrl } from "@/lib/sanitize";
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || "";
-const supabaseServiceKey =
-  process.env.SUPABASE_SERVICE_ROLE_KEY ||
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ||
-  "";
+const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || "";
 
 function getSupabaseClient() {
   return createClient(supabaseUrl, supabaseServiceKey, {
@@ -71,12 +69,23 @@ export async function submitRegistrationVerificationAction(body: {
   const supabase = getSupabaseClient();
   const nowIso = new Date().toISOString();
 
+  // Sanitize user inputs
+  const safeName = sanitize(name, 100);
+  const safeGeneration = sanitize(generation, 50);
+  const safeBrowser = sanitize(browser, 100);
+  const safeSnapshotUrl = sanitizeUrl(snapshotUrl);
+  const safeDeviceId = sanitize(deviceId, 64);
+
+  if (!safeSnapshotUrl) {
+    return { error: "URL snapshot tidak valid" };
+  }
+
   try {
     // Check if there is already an active pending verification for this device or name
     const { data: existing } = await supabase
       .from("tsg_member_verifications")
       .select("*")
-      .ilike("name", name.trim())
+      .ilike("name", safeName)
       .eq("status", "pending")
       .limit(1);
 
@@ -89,11 +98,11 @@ export async function submitRegistrationVerificationAction(body: {
       const { data: newVerif, error: insertErr } = await supabase
         .from("tsg_member_verifications")
         .insert({
-          device_id: deviceId,
-          browser: browser || "Unknown",
-          name: name.trim(),
-          generation: generation || "Member",
-          snapshot_url: snapshotUrl,
+          device_id: safeDeviceId,
+          browser: safeBrowser || "Unknown",
+          name: safeName,
+          generation: safeGeneration || "Member",
+          snapshot_url: safeSnapshotUrl,
           status: "pending",
           created_at: nowIso,
           updated_at: nowIso,

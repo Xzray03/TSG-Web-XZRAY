@@ -1,12 +1,10 @@
 "use server";
 
 import { createClient } from "@supabase/supabase-js";
+import { sanitize, sanitizeUrl } from "@/lib/sanitize";
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || "";
-const supabaseServiceKey =
-  process.env.SUPABASE_SERVICE_ROLE_KEY ||
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ||
-  "";
+const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || "";
 
 function getSupabaseClient() {
   return createClient(supabaseUrl, supabaseServiceKey, {
@@ -129,10 +127,10 @@ export async function createSocialPostAction(body: {
     const { error: insertErr } = await supabase.from("social_posts").insert({
       real_account_id: realAccountId,
       public_account_id: publicAccountId,
-      content: content.trim(),
-      link_url: linkUrl && linkUrl.trim() ? linkUrl.trim() : null,
-      media_url: mediaUrl || (attachments && attachments[0]?.url) || null,
-      media_type: mediaType || (attachments && attachments[0]?.type) || null,
+      content: sanitize(content, 2000),
+      link_url: sanitizeUrl(linkUrl || ''),
+      media_url: sanitizeUrl(mediaUrl || attachments?.[0]?.url || ''),
+      media_type: sanitize(mediaType || '', 50),
       attachments: attachments || [],
     });
 
@@ -231,7 +229,7 @@ export async function createSocialCommentAction(body: {
       post_id: postId,
       real_account_id: realAccountId,
       public_account_id: publicAccountId,
-      content: content.trim(),
+      content: sanitize(content, 1000),
     });
 
     if (insertErr) {

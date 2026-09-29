@@ -6,7 +6,6 @@ import { FloatingWhatsApp } from "@/components/layout/FloatingWhatsApp";
 import { ScrollToTopButton } from "@/components/layout/ScrollToTopButton";
 import { IntroLoader } from "@/components/layout/IntroLoader";
 import { MouseGuard } from "@/components/layout/MouseGuard";
-import { DevToolsGuard } from "@/components/layout/DevToolsGuard";
 import { WaterRippleEffect } from "@/components/layout/WaterRippleEffect";
 import { RobotProvider } from "@/components/layout/RobotContext";
 import { UserProfileBadge } from "@/components/layout/UserProfileBadge";
@@ -112,7 +111,6 @@ export default async function SiteLayout({
           <NavbarSocial />
           <WaterRippleEffect />
           <MouseGuard />
-          <DevToolsGuard />
           <IntroLoader />
           <Navbar shortName={settings.shortName} logoUrl={settings.logoUrl} />
           <ScrollToTopButton />

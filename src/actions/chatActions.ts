@@ -1,13 +1,11 @@
 "use server";
 
 import { createClient } from "@supabase/supabase-js";
+import { sanitize } from "@/lib/sanitize";
 import { getSiteSettings } from "@/sanity/queries";
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || "";
-const supabaseServiceKey =
-  process.env.SUPABASE_SERVICE_ROLE_KEY ||
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ||
-  "";
+const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || "";
 
 function getSupabaseClient() {
   return createClient(supabaseUrl, supabaseServiceKey, {
@@ -187,6 +185,13 @@ export async function sendChatMessageAction(body: {
   const { conversationId, senderId, recipientId, encryptedContent } = body;
   if (!senderId || !recipientId || !encryptedContent) {
     return { error: "Data pesan tidak lengkap." };
+  }
+  // Validate encrypted payload: must be string, bounded length (prevents abuse; content itself is client-encrypted)
+  if (typeof encryptedContent !== "string" || encryptedContent.length > 10000) {
+    return { error: "Payload pesan tidak valid." };
+  }
+  if (senderId.length > 64 || recipientId.length > 64 || (conversationId && conversationId.length > 64)) {
+    return { error: "ID tidak valid." };
   }
 
   const supabase = getSupabaseClient();

@@ -1,6 +1,7 @@
 "use server";
 
 import { createClient } from "@supabase/supabase-js";
+import { sanitize, sanitizeUrl } from "@/lib/sanitize";
 
 /**
  * Memeriksa apakah nickname termasuk nama/kata reserved yang dilarang (sistem/akun resmi TSG).
@@ -24,10 +25,7 @@ export async function isReservedNickname(nickname: string): Promise<boolean> {
 }
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || "";
-const supabaseServiceKey =
-  process.env.SUPABASE_SERVICE_ROLE_KEY ||
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ||
-  "";
+const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || "";
 
 function getSupabaseClient() {
   return createClient(supabaseUrl, supabaseServiceKey, {
@@ -186,14 +184,14 @@ export async function savePublicAccountAction(body: {
       const { error: updateErr } = await serverSupabase
         .from("public_accounts")
         .update({
-          nickname: cleanNickname,
-          name: name.trim(),
+          nickname: sanitize(cleanNickname, 50),
+          name: sanitize(name, 100),
           age: age ? parseInt(String(age), 10) : null,
-          bio: bio ? bio.trim() : null,
-          avatar_url: finalAvatarUrl,
+          bio: bio ? sanitize(bio, 500) : null,
+          avatar_url: sanitizeUrl(finalAvatarUrl || ''),
           show_tsg_member: finalShowTsg,
           social_media: socialMedia || {},
-          website: website ? website.trim() : null,
+          website: website ? sanitizeUrl(website) : null,
           updated_at: nowIso,
         })
         .eq("real_account_id", realAccountId);
@@ -206,14 +204,14 @@ export async function savePublicAccountAction(body: {
         .from("public_accounts")
         .insert({
           real_account_id: realAccountId,
-          nickname: cleanNickname,
-          name: name.trim(),
+          nickname: sanitize(cleanNickname, 50),
+          name: sanitize(name, 100),
           age: age ? parseInt(String(age), 10) : null,
-          bio: bio ? bio.trim() : null,
-          avatar_url: finalAvatarUrl,
+          bio: bio ? sanitize(bio, 500) : null,
+          avatar_url: sanitizeUrl(finalAvatarUrl || ''),
           show_tsg_member: finalShowTsg,
           social_media: socialMedia || {},
-          website: website ? website.trim() : null,
+          website: website ? sanitizeUrl(website) : null,
           created_at: nowIso,
           updated_at: nowIso,
         });

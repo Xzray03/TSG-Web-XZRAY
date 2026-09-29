@@ -23,7 +23,6 @@ import {
   Sliders,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
-import { supabase } from "@/lib/supabase";
 import { checkAccountAction, processAuthAction, checkEmailConfirmedAction } from "@/actions/authActions";
 
 interface ManageAccountModalProps {
@@ -175,12 +174,6 @@ export default function ManageAccountModal({
   useEffect(() => {
     if (!isConfirmationModalOpen) return;
 
-    const { data: authListener } = supabase.auth.onAuthStateChange(async (event, session) => {
-      if (session && (event === "SIGNED_IN" || event === "TOKEN_REFRESHED")) {
-        await finalizePasswordResetAfterConfirmation();
-      }
-    });
-
     const interval = setInterval(async () => {
       try {
         const result: any = await checkEmailConfirmedAction(registeredEmail);
@@ -191,7 +184,6 @@ export default function ManageAccountModal({
     }, 2500);
 
     return () => {
-      authListener.subscription.unsubscribe();
       clearInterval(interval);
     };
   }, [isConfirmationModalOpen, newPassword]);
@@ -288,8 +280,8 @@ export default function ManageAccountModal({
     setIsCheckingSession(true);
     setConfErrorMsg("");
     try {
-      const { data } = await supabase.auth.getSession();
-      if (data?.session) {
+      const result: any = await checkEmailConfirmedAction(registeredEmail);
+      if (result.confirmed) {
         await finalizePasswordResetAfterConfirmation();
       } else {
         setConfErrorMsg("Tautan konfirmasi belum diklik atau sesi belum aktif.");

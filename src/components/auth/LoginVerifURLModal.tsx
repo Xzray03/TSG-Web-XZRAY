@@ -3,7 +3,6 @@
 import React, { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Mail, Check, X, AlertCircle, Loader2, Send, ExternalLink } from "lucide-react";
-import { supabase } from "@/lib/supabase";
 import { processAuthAction, checkEmailConfirmedAction } from "@/actions/authActions";
 
 interface LoginConfirmationModalProps {
@@ -86,12 +85,6 @@ export function LoginVerifURLModal({
   useEffect(() => {
     if (!isOpen) return;
 
-    const { data: authListener } = supabase.auth.onAuthStateChange((event, session) => {
-      if (session && (event === "SIGNED_IN" || event === "TOKEN_REFRESHED")) {
-        onVerified();
-      }
-    });
-
     const interval = setInterval(async () => {
       try {
         const result: any = await checkEmailConfirmedAction(email);
@@ -102,7 +95,6 @@ export function LoginVerifURLModal({
     }, 2500);
 
     return () => {
-      authListener.subscription.unsubscribe();
       clearInterval(interval);
     };
   }, [isOpen, email, onVerified]);

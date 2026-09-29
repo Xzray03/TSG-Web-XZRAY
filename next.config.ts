@@ -26,6 +26,18 @@ const nextConfig: NextConfig = {
     ],
   },
   async headers() {
+    const csp = [
+      "default-src 'self'",
+      "script-src 'self' 'unsafe-inline' 'unsafe-eval'",
+      "style-src 'self' 'unsafe-inline'",
+      "img-src 'self' data: https://cdn.sanity.io https://files.catbox.moe",
+      "font-src 'self' data:",
+      "connect-src 'self' https://rxirimgjsuxonexnnrwc.supabase.co https://*.sanity.io",
+      "frame-ancestors 'none'",
+      "base-uri 'self'",
+      "form-action 'self'",
+    ].join("; ");
+
     return [
       {
         source: "/(.*)",
@@ -49,6 +61,10 @@ const nextConfig: NextConfig = {
           {
             key: "X-XSS-Protection",
             value: "1; mode=block",
+          },
+          {
+            key: "Content-Security-Policy",
+            value: csp,
           },
         ],
       },

@@ -1,19 +1,15 @@
 import { createClient } from "@supabase/supabase-js";
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || "";
-const supabasePublishableKey = 
-  process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY || 
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "";
+const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || "";
 
-if (!supabaseUrl || !supabasePublishableKey) {
-  console.warn("Supabase URL or Publishable/Anon Key is missing in environment variables.");
+if (!supabaseUrl || !supabaseServiceKey) {
+  console.warn("Supabase URL or Service Role Key is missing in environment variables.");
 }
 
-export const supabase = createClient(supabaseUrl, supabasePublishableKey, {
+export const supabase = createClient(supabaseUrl, supabaseServiceKey, {
   auth: {
-    persistSession: true,
-    autoRefreshToken: true,
-    detectSessionInUrl: true,
-    storage: typeof window !== "undefined" ? window.localStorage : undefined,
+    persistSession: false,
+    autoRefreshToken: false,
   },
 });
