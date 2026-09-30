@@ -35,7 +35,21 @@ import {
   searchUsersAction,
 } from "@/actions/chatActions";
 import { uploadSocialFilesAction } from "@/actions/socialActions";
-import { encryptChatMessage, decryptChatMessage } from "@/lib/e2ee";
+import {
+  encryptChatMessage,
+  encryptLegacyChatMessage,
+  decryptChatMessage,
+  fingerprintOf,
+  safetyNumber,
+  checkPeerPin,
+  pinPeer,
+  getLocalIdentity,
+  localMatchesRecord,
+  type PublicJwk,
+  type ChatKeyRecord,
+} from "@/lib/e2ee";
+import { getChatKeyAction, getPublicKeysAction } from "@/actions/chatKeyActions";
+import { ChatE2EEGate } from "@/components/chat/ChatE2EEGate";
 import { detectFileType } from "@/lib/fileTypeDetector";
 import { SocialMediaRenderer } from "@/components/social/SocialMediaRenderer";
 import { PublicProfilePreviewModal } from "@/components/auth/PublicProfilePreviewModal";
@@ -97,6 +111,16 @@ export function ChatPageClient() {
   const [searchResults, setSearchResults] = useState<any[]>([]);
   const [isSearching, setIsSearching] = useState(false);
 
+  // E2EE state
+  const [e2eeState, setE2eeState] = useState<"loading" | "setup" | "unlock" | "ready" | "error">("loading");
+  const [e2eeRecord, setE2eeRecord] = useState<ChatKeyRecord | null>(null);
+  const [e2eeError, setE2eeError] = useState("");
+  const peerKeysRef = useRef<Record<string, { publicKey: PublicJwk; fp: string }>>({});
+  const [peerStatus, setPeerStatus] = useState<Record<string, { status: "ok" | "missing" | "changed"; fp?: string }>>({});
+  const peerStatusRef = useRef<Record<string, { status: "ok" | "missing" | "changed"; fp?: string }>>({});
+  const [showSafety, setShowSafety] = useState(false);
+  const [safetyNum, setSafetyNum] = useState("");
+
   // Profile Preview Modal
   const [previewProfile, setPreviewProfile] = useState<any>(null);
 
@@ -117,7 +141,9 @@ export function ChatPageClient() {
   const chatEndRef = useRef<HTMLDivElement>(null);
   const chatFileInputRef = useRef<HTMLInputElement>(null);
 
-  useScrollLock(isSearchModalOpen || !!previewProfile || showLinkModal || !!viewerUrl);
+  useScrollLock(
+    isSearchModalOpen || !!previewProfile || showLinkModal || !!viewerUrl || e2eeState === "setup" || e2eeState === "unlock"
+  );
 
   useEffect(() => {
     async function verifyAuthAndLoad() {
@@ -141,6 +167,7 @@ export function ChatPageClient() {
         }
         setPublicAccount(res.publicAccount);
 
+        await initE2EE(parsed.id);
         await loadConversations(parsed.id);
       } catch (e) {
         router.replace("/");
@@ -163,6 +190,84 @@ export function ChatPageClient() {
     return () => clearInterval(interval);
   }, [profile?.id, selectedConv?.id]);
 
+  const initE2EE = async (userId: string) => {
+    const res: any = await getChatKeyAction(userId);
+    if (res?.error) {
+      setE2eeError(res.error);
+      setE2eeState("error");
+      return;
+    }
+    setE2eeRecord(res.record || null);
+    if (!res.record) {
+      setE2eeState("setup");
+      return;
+    }
+    const local = await getLocalIdentity(userId);
+    setE2eeState(localMatchesRecord(local, res.record) ? "ready" : "unlock");
+  };
+
+  const ensurePeerKeys = async (myId: string, ids: string[]) => {
+    const targets = Array.from(new Set(ids.filter((i) => i && i !== VIRTUAL_ID && i !== myId)));
+    if (targets.length === 0) return;
+    const res: any = await getPublicKeysAction(targets);
+    if (!res || res.error || !res.keys) return;
+    const nextStatus: Record<string, { status: "ok" | "missing" | "changed"; fp?: string }> = {};
+    for (const id of targets) {
+      const k = res.keys[id];
+      if (!k) {
+        delete peerKeysRef.current[id];
+        nextStatus[id] = { status: "missing" };
+        continue;
+      }
+      const fp = await fingerprintOf(k.publicKey);
+      let st = checkPeerPin(myId, id, fp);
+      if (st === "new") {
+        pinPeer(myId, id, fp); // Trust-on-first-use
+        st = "same";
+      }
+      peerKeysRef.current[id] = { publicKey: k.publicKey, fp };
+      nextStatus[id] = { status: st === "changed" ? "changed" : "ok", fp };
+    }
+    peerStatusRef.current = { ...peerStatusRef.current, ...nextStatus };
+    setPeerStatus((prev) => ({ ...prev, ...nextStatus }));
+  };
+
+  const handleE2EEReady = async () => {
+    setE2eeState("ready");
+    if (!profile?.id) return;
+    const r: any = await getChatKeyAction(profile.id);
+    setE2eeRecord(r?.record || null);
+    setDecryptedMessages({});
+    await loadConversations(profile.id, true);
+    if (selectedConv?.id) {
+      await loadMessages(selectedConv.id, profile.id, selectedConv.otherUser.id, true);
+    }
+  };
+
+  const openSafety = async () => {
+    if (showSafety) {
+      setShowSafety(false);
+      return;
+    }
+    const peerId = selectedConv?.otherUser?.id;
+    const peer = peerId ? peerKeysRef.current[peerId] : null;
+    const me = profile?.id ? await getLocalIdentity(profile.id) : null;
+    if (!peer || !me) return;
+    setSafetyNum(await safetyNumber(await fingerprintOf(me.publicJwk), peer.fp));
+    setShowSafety(true);
+  };
+
+  const acceptChangedKey = async () => {
+    const peerId = selectedConv?.otherUser?.id;
+    const peer = peerId ? peerKeysRef.current[peerId] : null;
+    if (!peerId || !peer || !profile?.id) return;
+    pinPeer(profile.id, peerId, peer.fp);
+    peerStatusRef.current = { ...peerStatusRef.current, [peerId]: { status: "ok", fp: peer.fp } };
+    setPeerStatus((prev) => ({ ...prev, [peerId]: { status: "ok", fp: peer.fp } }));
+    setShowSafety(false);
+    if (selectedConv?.id) await loadMessages(selectedConv.id, profile.id, peerId, true);
+  };
+
   const loadConversations = async (userId: string, silent = false) => {
     if (!silent) setIsLoadingConvs(true);
     try {
@@ -170,10 +275,17 @@ export function ChatPageClient() {
       if (res && res.conversations) {
         setConversations(res.conversations);
 
+        await ensurePeerKeys(userId, res.conversations.map((c: any) => c.otherUser?.id));
         const decMap: Record<string, string> = {};
         for (const c of res.conversations) {
           if (c.last_message) {
-            const dec = await decryptChatMessage(c.last_message, userId, c.otherUser.id);
+            const dec = await decryptChatMessage(
+              c.last_message,
+              userId,
+              c.otherUser.id,
+              undefined,
+              peerKeysRef.current[c.otherUser.id]?.publicKey
+            );
             decMap[c.id] = formatLastMessagePreview(dec);
           }
         }
@@ -199,7 +311,13 @@ export function ChatPageClient() {
 
         const decMap: Record<string, string> = {};
         for (const m of res.messages) {
-          decMap[m.id] = await decryptChatMessage(m.content, currentUserId, otherUserId);
+          decMap[m.id] = await decryptChatMessage(
+            m.content,
+            currentUserId,
+            otherUserId,
+            m.sender_id,
+            peerKeysRef.current[otherUserId]?.publicKey
+          );
         }
         setDecryptedMessages((prev) => ({ ...prev, ...decMap }));
 
@@ -213,10 +331,12 @@ export function ChatPageClient() {
     }
   };
 
-  const handleSelectConversation = (conv: any) => {
+  const handleSelectConversation = async (conv: any) => {
     setSelectedConv(conv);
     setChatFiles([]);
     setChatLinkUrl("");
+    setShowSafety(false);
+    await ensurePeerKeys(profile.id, [conv.otherUser.id]);
     loadMessages(conv.id, profile.id, conv.otherUser.id);
   };
 
@@ -287,6 +407,26 @@ export function ChatPageClient() {
     setShowAttachmentMenu(false);
 
     try {
+      // E2EE wajib: tidak ada pengiriman plaintext. Akun Resmi (akun virtual server) memakai skema lama.
+      if (!isVirtualTsg) {
+        if (e2eeState !== "ready") {
+          setInputMessage(text);
+          alert("Enkripsi chat belum aktif di perangkat ini.");
+          return;
+        }
+        await ensurePeerKeys(profile.id, [selectedConv.otherUser.id]);
+        const st = peerStatusRef.current[selectedConv.otherUser.id]?.status;
+        if (st !== "ok" || !peerKeysRef.current[selectedConv.otherUser.id]) {
+          setInputMessage(text);
+          alert(
+            st === "changed"
+              ? "Kunci keamanan lawan bicara berubah. Verifikasi lalu percayai kunci baru sebelum mengirim."
+              : "Lawan bicara belum mengaktifkan enkripsi chat, pesan tidak dikirim."
+          );
+          return;
+        }
+      }
+
       let attachments: any[] = [];
 
       if (!isVirtualTsg && chatFiles.length > 0) {
@@ -318,11 +458,14 @@ export function ChatPageClient() {
         });
       }
 
-      const encrypted = await encryptChatMessage(
-        finalContent,
-        profile.id,
-        selectedConv.otherUser.id
-      );
+      const encrypted = isVirtualTsg
+        ? await encryptLegacyChatMessage(finalContent, profile.id, selectedConv.otherUser.id)
+        : await encryptChatMessage(
+            finalContent,
+            profile.id,
+            selectedConv.otherUser.id,
+            peerKeysRef.current[selectedConv.otherUser.id].publicKey
+          );
 
       const res: any = await sendChatMessageAction({
         conversationId: selectedConv.id,
@@ -343,6 +486,8 @@ export function ChatPageClient() {
         setTimeout(() => chatEndRef.current?.scrollIntoView({ behavior: "smooth" }), 100);
       }
     } catch (e) {
+      setInputMessage(text);
+      alert("Gagal mengenkripsi/mengirim pesan. Pesan tidak dikirim.");
     } finally {
       setIsSubmitting(false);
     }
@@ -384,6 +529,8 @@ export function ChatPageClient() {
         otherUser: targetUser,
       };
       setSelectedConv(tempConv);
+      setShowSafety(false);
+      ensurePeerKeys(profile.id, [targetUser.id]);
       setMessages([]);
       setChatFiles([]);
       setChatLinkUrl("");
@@ -394,6 +541,19 @@ export function ChatPageClient() {
 
   return (
     <div className="bg-grid relative overflow-hidden pb-10 pt-36 min-h-screen flex flex-col">
+      {(e2eeState === "setup" || e2eeState === "unlock") && profile?.id && (
+        <ChatE2EEGate
+          userId={profile.id}
+          mode={e2eeState}
+          record={e2eeRecord}
+          onReady={handleE2EEReady}
+        />
+      )}
+      {e2eeState === "error" && (
+        <div className="mx-auto max-w-6xl w-full px-4 sm:px-6 mb-3 text-xs text-red-300 bg-red-500/10 border border-red-500/20 rounded-xl py-2">
+          Enkripsi chat tidak tersedia: {e2eeError}
+        </div>
+      )}
       <div className="pointer-events-none absolute left-1/2 top-24 -z-10 h-[420px] w-[420px] -translate-x-1/2 rounded-full bg-primary/10 blur-[140px]" />
 
       <div className="mx-auto max-w-6xl w-full px-4 sm:px-6 flex-1 flex flex-col">
@@ -411,7 +571,7 @@ export function ChatPageClient() {
                 </span>
               </h1>
               <p className="text-xs text-slate-400">
-                Pesan langsung aman & terenkripsi end-to-end.
+                Pesan teks terenkripsi end-to-end. Lampiran media belum dienkripsi.
               </p>
             </div>
           </div>
@@ -567,11 +727,59 @@ export function ChatPageClient() {
                     </div>
                   </div>
 
-                  <div className="flex items-center gap-1 text-[10px] text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-2.5 py-1 rounded-full">
-                    <Lock className="w-3 h-3" />
-                    <span>E2EE Active</span>
-                  </div>
+                  {isVirtualTsg ? (
+                    <div className="flex items-center gap-1 text-[10px] text-slate-300 bg-slate-500/10 border border-slate-500/20 px-2.5 py-1 rounded-full">
+                      <Lock className="w-3 h-3" />
+                      <span>Akun Resmi (bukan E2EE)</span>
+                    </div>
+                  ) : peerStatus[selectedConv.otherUser.id]?.status === "ok" ? (
+                    <button
+                      type="button"
+                      onClick={openSafety}
+                      className="flex items-center gap-1 text-[10px] text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-2.5 py-1 rounded-full"
+                    >
+                      <Lock className="w-3 h-3" />
+                      <span>E2EE Aktif · Verifikasi</span>
+                    </button>
+                  ) : peerStatus[selectedConv.otherUser.id]?.status === "changed" ? (
+                    <div className="flex items-center gap-1 text-[10px] text-red-300 bg-red-500/10 border border-red-500/20 px-2.5 py-1 rounded-full">
+                      <Lock className="w-3 h-3" />
+                      <span>Kunci berubah</span>
+                    </div>
+                  ) : (
+                    <div className="flex items-center gap-1 text-[10px] text-amber-300 bg-amber-500/10 border border-amber-500/20 px-2.5 py-1 rounded-full">
+                      <Lock className="w-3 h-3" />
+                      <span>{peerStatus[selectedConv.otherUser.id] ? "E2EE belum aktif" : "Memeriksa kunci..."}</span>
+                    </div>
+                  )}
                 </div>
+
+                {!isVirtualTsg && peerStatus[selectedConv.otherUser.id]?.status === "missing" && (
+                  <div className="px-4 py-2 text-[11px] text-amber-200 bg-amber-500/10 border-b border-amber-500/20">
+                    Lawan bicara belum mengaktifkan enkripsi chat. Anda belum bisa mengirim pesan sampai mereka mengaktifkannya.
+                  </div>
+                )}
+                {!isVirtualTsg && peerStatus[selectedConv.otherUser.id]?.status === "changed" && (
+                  <div className="px-4 py-2 text-[11px] text-red-200 bg-red-500/10 border-b border-red-500/20 flex items-center justify-between gap-2">
+                    <span>Kunci keamanan lawan bicara berubah. Bandingkan kode keamanan dengannya sebelum melanjutkan.</span>
+                    <button
+                      type="button"
+                      onClick={acceptChangedKey}
+                      className="shrink-0 rounded-lg bg-red-600 hover:bg-red-500 text-white px-2.5 py-1 font-semibold"
+                    >
+                      Percayai kunci baru
+                    </button>
+                  </div>
+                )}
+                {showSafety && (
+                  <div className="px-4 py-2 text-[11px] text-slate-200 bg-slate-800/80 border-b border-white/10">
+                    <div className="font-semibold text-emerald-300 mb-0.5">Kode keamanan</div>
+                    <div className="font-mono tracking-wider">{safetyNum}</div>
+                    <div className="text-slate-400 mt-0.5">
+                      Cocokkan kode ini dengan lawan bicara lewat jalur lain (tatap muka/telepon). Jika sama, percakapan aman dari penyadapan.
+                    </div>
+                  </div>
+                )}
 
                 {/* Messages List Area */}
                 <div className="flex-1 p-4 overflow-y-auto space-y-3 scrollbar-thin">

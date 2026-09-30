@@ -7,6 +7,12 @@ import { getSiteSettings } from "@/sanity/queries";
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || "";
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || "";
 
+// ID hanya boleh alfanumerik/strip: mencegah injeksi filter PostgREST pada .or()/.eq().
+const ID_RE = /^[A-Za-z0-9-]{8,64}$/;
+const VIRTUAL_ID = "00000000-0000-0000-0000-000000000001";
+const E2EE_V2_RE = /^e2ee2:[A-Za-z0-9+/]+={0,2}:[A-Za-z0-9+/]+={0,2}$/;
+const E2EE_V1_RE = /^e2ee:[A-Za-z0-9+/]+={0,2}:[A-Za-z0-9+/]+={0,2}$/;
+
 function getSupabaseClient() {
   return createClient(supabaseUrl, supabaseServiceKey, {
     auth: { persistSession: false, autoRefreshToken: false },
@@ -14,7 +20,7 @@ function getSupabaseClient() {
 }
 
 export async function getConversationsAction(realAccountId: string) {
-  if (!realAccountId) return { conversations: [] };
+  if (!realAccountId || !ID_RE.test(realAccountId)) return { conversations: [] };
   const supabase = getSupabaseClient();
 
   // Start Sanity fetch early so it runs in parallel with the Supabase query below.
@@ -156,7 +162,7 @@ export async function getConversationsAction(realAccountId: string) {
 }
 
 export async function getChatMessagesAction(conversationId: string) {
-  if (!conversationId) return { messages: [] };
+  if (!conversationId || !ID_RE.test(conversationId)) return { messages: [] };
   const supabase = getSupabaseClient();
 
   try {
@@ -190,8 +196,18 @@ export async function sendChatMessageAction(body: {
   if (typeof encryptedContent !== "string" || encryptedContent.length > 10000) {
     return { error: "Payload pesan tidak valid." };
   }
-  if (senderId.length > 64 || recipientId.length > 64 || (conversationId && conversationId.length > 64)) {
+  if (
+    !ID_RE.test(senderId) ||
+    !ID_RE.test(recipientId) ||
+    (conversationId && !ID_RE.test(conversationId))
+  ) {
     return { error: "ID tidak valid." };
+  }
+  // Server hanya menerima ciphertext E2EE v2. Skema lama (v1) hanya untuk Akun Resmi (akun virtual server).
+  const involvesVirtual = senderId === VIRTUAL_ID || recipientId === VIRTUAL_ID;
+  const payloadOk = E2EE_V2_RE.test(encryptedContent) || (involvesVirtual && E2EE_V1_RE.test(encryptedContent));
+  if (!payloadOk) {
+    return { error: "Pesan harus terenkripsi end-to-end." };
   }
 
   const supabase = getSupabaseClient();
@@ -265,7 +281,9 @@ export async function searchUsersAction(query: string, currentUserId: string) {
     return { users: [] };
   }
 
-  const cleanQ = query.trim().toLowerCase();
+  // Buang karakter yang bisa memecah sintaks filter PostgREST (koma, kurung, wildcard, dll).
+  const cleanQ = query.trim().toLowerCase().replace(/[^\p{L}\p{N}_ .-]/gu, "");
+  if (cleanQ.length < 2) return { users: [] };
   const supabase = getSupabaseClient();
 
   try {
