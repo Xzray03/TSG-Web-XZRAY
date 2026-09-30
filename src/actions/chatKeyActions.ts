@@ -137,7 +137,7 @@ export async function publishChatKeyAction(body: {
       });
       if (error) {
         if (error.code === "23505") return { error: "exists" };
-        if (error.code === "42P01") return { error: "Tabel chat_keys belum ada. Jalankan sql/chat_e2ee.sql." };
+        if (error.code === "42P01") return { error: "Tabel chat_keys belum ada." };
         return { error: error.message };
       }
       return { success: true, keyVersion: 1 };
