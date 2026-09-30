@@ -1,6 +1,9 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 
+// Site key Turnstile bersifat publik (aman ada di kode/HTML).
+const TURNSTILE_SITE_KEY = process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY || '0x4AAAAAAFJqWLE4hNPkdagy';
+
 export const config = {
   matcher: [
     '/((?!_next/static|_next/image|favicon.ico|sitemap.xml|robots.txt).*)',
@@ -150,6 +153,7 @@ export async function middleware(req: NextRequest) {
 <head>
   <meta charset="utf-8">
   <title>Memverifikasi Keamanan Browser...</title>
+  <script src="https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit" async defer></script>
   <style>
     body { font-family: system-ui, -apple-system, sans-serif; background: #0f172a; color: #f8fafc; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; }
     .card { background: #1e293b; padding: 2rem; border-radius: 1rem; box-shadow: 0 10px 25px -5px rgba(0,0,0,0.5); text-align: center; max-width: 400px; width: 100%; border: 1px solid #334155; }
@@ -164,6 +168,7 @@ export async function middleware(req: NextRequest) {
     <div class="spinner"></div>
     <h2>Verifikasi Keamanan</h2>
     <p>Mohon tunggu sebentar, browser Anda sedang diverifikasi untuk mencegah bot otomatis...</p>
+    <div id="ts-box" style="margin-top:1rem;display:flex;justify-content:center;"></div>
   </div>
   <script>
     (async function() {
@@ -208,6 +213,36 @@ export async function middleware(req: NextRequest) {
           document.body.innerHTML = '<div style="background:#1e293b;color:#f8fafc;padding:2rem;text-align:center;border-radius:1rem;margin:auto;max-width:400px;"><h2>Akses Ditolak</h2><p>Browser otomatis atau headless terdeteksi.</p></div>';
           return;
         }
+        const siteKey = "${TURNSTILE_SITE_KEY}";
+        const getTurnstileToken = function() {
+          return new Promise(function(resolve, reject) {
+            let waited = 0;
+            const timer = setInterval(function() {
+              waited += 100;
+              if (window.turnstile) {
+                clearInterval(timer);
+                try {
+                  window.turnstile.render('#ts-box', {
+                    sitekey: siteKey,
+                    action: 'shield',
+                    theme: 'dark',
+                    appearance: 'interaction-only',
+                    callback: function(t) { resolve(t); },
+                    'error-callback': function() { reject(new Error('turnstile-error')); },
+                    'expired-callback': function() { reject(new Error('turnstile-expired')); },
+                    'timeout-callback': function() { reject(new Error('turnstile-timeout')); }
+                  });
+                } catch (e) { reject(e); }
+              } else if (waited > 15000) {
+                clearInterval(timer);
+                reject(new Error('turnstile-load'));
+              }
+            }, 100);
+          });
+        };
+        // Jalankan Turnstile paralel dengan proof-of-work agar tidak melewati jendela 60 detik
+        const turnstilePromise = getTurnstileToken();
+        turnstilePromise.catch(function() {});
         const difficulty = 4;
         const targetPrefix = '0'.repeat(difficulty);
         let nonceVal = 0;
@@ -226,10 +261,11 @@ export async function middleware(req: NextRequest) {
             await new Promise(r => setTimeout(r, 0));
           }
         }
+        const turnstileToken = await turnstilePromise;
         const res = await fetch('/api/shield/verify', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ nonce, ts, sig, powNonce: nonceVal, hash: hashHex })
+          body: JSON.stringify({ nonce, ts, sig, powNonce: nonceVal, hash: hashHex, turnstileToken })
         });
         if (res.ok) {
           window.location.reload();

@@ -28,11 +28,12 @@ const nextConfig: NextConfig = {
   async headers() {
     const csp = [
       "default-src 'self'",
-      "script-src 'self' 'unsafe-inline' 'unsafe-eval'",
+      "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://challenges.cloudflare.com",
       "style-src 'self' 'unsafe-inline'",
       "img-src 'self' data: https://cdn.sanity.io https://files.catbox.moe",
       "font-src 'self' data:",
-      "connect-src 'self' https://rxirimgjsuxonexnnrwc.supabase.co https://*.sanity.io",
+      "connect-src 'self' https://rxirimgjsuxonexnnrwc.supabase.co https://*.sanity.io https://challenges.cloudflare.com",
+      "frame-src https://challenges.cloudflare.com",
       "frame-ancestors 'none'",
       "base-uri 'self'",
       "form-action 'self'",
