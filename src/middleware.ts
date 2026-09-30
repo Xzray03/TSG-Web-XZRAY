@@ -169,13 +169,23 @@ export async function middleware(req: NextRequest) {
         if (navigator.webdriver === true) violations++;
         const wdDesc = Object.getOwnPropertyDescriptor(Navigator.prototype, 'webdriver');
         if (wdDesc && !wdDesc.get.toString().includes('native code')) violations++;
-        if (!window.chrome || !window.chrome.runtime) {
-          if (navigator.userAgent.includes('Chrome') && !navigator.userAgent.includes('Edg')) {
+        const isAndroid = /Android/i.test(navigator.userAgent);
+        if (!isAndroid) {
+          // Jalur desktop (asli, tidak diubah)
+          if (!window.chrome || !window.chrome.runtime) {
+            if (navigator.userAgent.includes('Chrome') && !navigator.userAgent.includes('Edg')) {
+              violations++;
+            }
+          }
+          if (navigator.plugins.length === 0 && navigator.userAgent.includes('Chrome')) {
             violations++;
           }
-        }
-        if (navigator.plugins.length === 0 && navigator.userAgent.includes('Chrome')) {
-          violations++;
+        } else {
+          // Jalur khusus Android: chrome.runtime & plugins memang kosong di browser mobile,
+          // jadi diganti cek yang relevan untuk perangkat mobile asli.
+          if (navigator.webdriver === true) violations++; // bobot ganda: webdriver di Android = otomatis
+          if (!(navigator.maxTouchPoints > 0)) violations++; // Android asli selalu punya layar sentuh
+          if (/HeadlessChrome/i.test(navigator.userAgent)) violations++;
         }
         const canvas = document.createElement('canvas');
         const gl = canvas.getContext('webgl') || canvas.getContext('experimental-webgl');
