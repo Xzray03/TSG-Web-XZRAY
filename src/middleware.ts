@@ -15,7 +15,8 @@ async function verifyShieldToken(token: string, ua: string): Promise<boolean> {
     const tsNum = parseInt(ts, 10);
     if (isNaN(tsNum) || Math.abs(Date.now() - tsNum) > 6 * 60 * 60 * 1000) return false;
 
-    const secret = process.env.SHIELD_SECRET || 'tsg-secure-shield-secret-key-2026';
+    const secret = process.env.SHIELD_SECRET;
+    if (!secret) return false;
     const enc = new TextEncoder();
     const key = await crypto.subtle.importKey('raw', enc.encode(secret), { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']);
     const data = enc.encode(`${nonce}:${ts}:${ua}`);
@@ -32,6 +33,11 @@ function isServerAction(req: NextRequest): boolean {
 }
 
 export async function middleware(req: NextRequest) {
+  // Fail-closed: tanpa SHIELD_SECRET, tolak semua request (tidak ada kunci cadangan di kode)
+  if (!process.env.SHIELD_SECRET) {
+    return new NextResponse('Service Unavailable', { status: 503, headers: { 'Content-Type': 'text/plain' } });
+  }
+
   const url = req.nextUrl;
   const ua = req.headers.get('user-agent') || '';
   const secFetchDest = req.headers.get('sec-fetch-dest');
@@ -134,7 +140,7 @@ export async function middleware(req: NextRequest) {
     const timestamp = Date.now().toString();
 
     // HMAC-sign nonce:ts to prevent direct attacker-generated PoW submissions to /api/shield/verify
-    const secret = process.env.SHIELD_SECRET || 'tsg-secure-shield-secret-key-2026';
+    const secret = process.env.SHIELD_SECRET as string;
     const enc = new TextEncoder();
     const macKey = await crypto.subtle.importKey('raw', enc.encode(secret), { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']);
     const mac = await crypto.subtle.sign('HMAC', macKey, enc.encode(`${nonce}:${timestamp}`));

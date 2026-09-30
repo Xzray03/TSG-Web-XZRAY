@@ -11,7 +11,10 @@ export async function POST(req: NextRequest) {
     }
 
     // 0. Verify challenge signature issued by middleware
-    const secret = process.env.SHIELD_SECRET || 'tsg-secure-shield-secret-key-2026';
+    const secret = process.env.SHIELD_SECRET;
+    if (!secret) {
+      return NextResponse.json({ error: 'Server misconfigured' }, { status: 500 });
+    }
     const enc = new TextEncoder();
     const macKey = await crypto.subtle.importKey('raw', enc.encode(secret), { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']);
     const mac = await crypto.subtle.sign('HMAC', macKey, enc.encode(`${nonce}:${ts}`));
