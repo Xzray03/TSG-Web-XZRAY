@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import Image from "next/image";
-import { Globe } from "lucide-react";
+import { User } from "lucide-react";
 import { Tooltip } from "@/components/ui/Tooltip";
 import { PublicProfilePreviewModal } from "@/components/auth/PublicProfilePreviewModal";
 import type { TeamMember } from "@/types";
@@ -17,8 +17,7 @@ export function TeamMemberCardPublicButton({ member }: TeamMemberCardPublicButto
   if (!member.isSupabaseConnected) return null;
 
   const pubAcc = member.publicAccount;
-  const avatarUrl = pubAcc?.avatar_url || member.photo;
-  const hasAvatar = Boolean(pubAcc?.avatar_url && pubAcc.avatar_url.trim());
+  const avatarUrl = pubAcc?.avatar_url?.trim() ? pubAcc.avatar_url : member.photo;
   const nickname = pubAcc?.nickname || member.nickname || member.name;
 
   return (
@@ -31,7 +30,7 @@ export function TeamMemberCardPublicButton({ member }: TeamMemberCardPublicButto
             aria-label="Lihat Akun Publik"
             className="flex h-8 w-8 items-center justify-center rounded-full overflow-hidden border border-white/20 bg-slate-900/80 text-white backdrop-blur-md shadow-lg transition-transform hover:scale-110 active:scale-95 cursor-pointer"
           >
-            {hasAvatar ? (
+            {avatarUrl ? (
               <Image
                 src={avatarUrl}
                 alt={nickname}
@@ -41,7 +40,7 @@ export function TeamMemberCardPublicButton({ member }: TeamMemberCardPublicButto
                 crossOrigin="anonymous"
               />
             ) : (
-              <Globe className="h-4 w-4 text-blue-400" strokeWidth={2.5} />
+              <User className="h-4 w-4 text-emerald-400" strokeWidth={2.5} />
             )}
           </button>
         </Tooltip>
