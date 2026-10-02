@@ -110,7 +110,9 @@ export async function getPublicAccountAction(_ignored?: string) {
         .limit(1);
 
       if (realAcc && realAcc.length > 0) {
-        if (!pubAcc.avatar_url && realAcc[0].photo) {
+        // Fallback foto asli hanya untuk akun publik yang belum pernah memasang avatar sendiri.
+        // Akun yang avatar_url-nya sudah diset (walau kosong karena user menghapusnya) tidak di-overwrite.
+        if (pubAcc.avatar_url === null && realAcc[0].photo) {
           pubAcc.avatar_url = realAcc[0].photo;
         }
         if (realAcc[0].created_at) {
@@ -180,7 +182,7 @@ export async function savePublicAccountAction(body: {
     const finalAvatarUrl =
       avatarUrl && typeof avatarUrl === "string" && avatarUrl.trim()
         ? avatarUrl.trim()
-        : realAcc.photo || null;
+        : null;
 
     const finalShowTsg = showTsgMember && isRealTsgMember;
 

@@ -335,6 +335,11 @@ export function UserProfileBadge() {
     if (profile.id && isSessionActive) {
       fetchPublicAccountInfo();
     }
+    const handleProfileUpdated = () => {
+      fetchPublicAccountInfo();
+    };
+    window.addEventListener("tsg_profile_updated", handleProfileUpdated);
+    return () => window.removeEventListener("tsg_profile_updated", handleProfileUpdated);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [profile.id, isSessionActive]);
 

@@ -39,10 +39,11 @@ export function sanitize(input: string, maxLength = 2000): string {
   return escapeHtml(stripHtml(input)).trim().slice(0, maxLength);
 }
 
-/** Sanitize URL (only allow http/https, block javascript: scheme). */
+/** Sanitize URL (allow http/https and data:image/, block javascript: scheme). */
 export function sanitizeUrl(input: string): string {
   if (!input) return '';
   const trimmed = input.trim();
   if (/^https?:\/\//i.test(trimmed)) return trimmed;
+  if (/^data:image\/[a-z0-9+.-]+;base64,/i.test(trimmed) && trimmed.length <= 4_000_000) return trimmed;
   return '';
 }

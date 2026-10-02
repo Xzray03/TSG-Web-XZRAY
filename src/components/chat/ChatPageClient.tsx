@@ -182,7 +182,18 @@ export function ChatPageClient() {
       }
     }
     verifyAuthAndLoad();
-  }, [router]);
+
+    const handleProfileUpdated = async () => {
+      if (profile?.id) {
+        const res: any = await getPublicAccountAction(profile.id);
+        if (res?.publicAccount) {
+          setPublicAccount(res.publicAccount);
+        }
+      }
+    };
+    window.addEventListener("tsg_profile_updated", handleProfileUpdated);
+    return () => window.removeEventListener("tsg_profile_updated", handleProfileUpdated);
+  }, [router, profile?.id]);
 
   // Polling conversations & current active chat
   useEffect(() => {
