@@ -13,7 +13,8 @@ import {
   CanvasCaptcha,
   CanvasCaptchaRef,
 } from "@/components/auth/CanvasCaptcha";
-import { processAuthAction } from "@/actions/authActions";
+import { deleteAccountAction } from "@/actions/authActions";
+import { getStepUpProof } from "@/lib/stepUp";
 
 interface DeleteAccountModalProps {
   isOpen: boolean;
@@ -38,6 +39,7 @@ export default function DeleteAccountModal({
   onAccountDeleted,
 }: DeleteAccountModalProps) {
   const [step, setStep] = useState<1 | 2 | 3>(1);
+  const [password, setPassword] = useState("");
   const [captchaInput, setCaptchaInput] = useState("");
   const [expectedCaptcha, setExpectedCaptcha] = useState("");
   const [isLoading, setIsLoading] = useState(false);
@@ -47,6 +49,7 @@ export default function DeleteAccountModal({
 
   useEffect(() => {
     setStep(1);
+    setPassword("");
     setCaptchaInput("");
     setErrorMsg("");
     setIsLoading(false);
@@ -81,13 +84,11 @@ export default function DeleteAccountModal({
     setIsLoading(true);
 
     try {
-      const data: any = await processAuthAction({
-        action: "delete_account",
-        name: userName,
-      });
+      const proof = await getStepUpProof("delete_account");
+      const data: any = await deleteAccountAction({ password, proof });
 
-      if (!data.success) {
-        throw new Error(data.error || "Gagal menghapus akun secara permanen.");
+      if (!data?.success) {
+        throw new Error(data?.error || "Gagal menghapus akun secara permanen.");
       }
 
       onAccountDeleted();
@@ -219,6 +220,21 @@ export default function DeleteAccountModal({
                 <span className="font-bold text-white">{userName}</span> secara
                 permanen dan menyetujui penghapusan seluruh data.
               </p>
+            </div>
+
+            <div className="space-y-2 pt-1 border-t border-white/10">
+              <label className="text-xs font-medium text-white/80">
+                Masukkan Password Akun
+              </label>
+              <input
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder="Password saat ini"
+                autoComplete="current-password"
+                required
+                className="w-full px-4 py-2.5 bg-slate-800/80 border border-white/15 rounded-xl text-sm text-white placeholder-white/30 focus:outline-none focus:border-rose-400 transition"
+              />
             </div>
 
             <div className="space-y-2 pt-1 border-t border-white/10">

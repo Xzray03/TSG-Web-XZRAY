@@ -3,6 +3,23 @@
 import { createClient } from "@supabase/supabase-js";
 import { sanitize } from "@/lib/sanitize";
 import { getSiteSettings } from "@/sanity/queries";
+import { getSession } from "@/lib/server/session";
+import { hit } from "@/lib/server/rateLimit";
+
+const UNAUTH = { error: "Sesi tidak valid atau telah berakhir. Silakan login kembali.", code: "UNAUTHENTICATED" };
+
+/** Pastikan pengguna sesi adalah peserta percakapan; kembalikan ID lawan bicara. */
+async function conversationPeer(conversationId: string, userId: string): Promise<string | null> {
+  const { data } = await getSupabaseClient()
+    .from("chat_conversations")
+    .select("user1_id, user2_id")
+    .eq("id", conversationId)
+    .maybeSingle();
+  if (!data) return null;
+  if (data.user1_id === userId) return data.user2_id;
+  if (data.user2_id === userId) return data.user1_id;
+  return null;
+}
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || "";
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || "";
@@ -19,8 +36,11 @@ function getSupabaseClient() {
   });
 }
 
-export async function getConversationsAction(realAccountId: string) {
-  if (!realAccountId || !ID_RE.test(realAccountId)) return { conversations: [] };
+export async function getConversationsAction(_ignored?: string) {
+  // Identitas dari sesi server; parameter dari klien diabaikan.
+  const sess = await getSession();
+  if (!sess) return { conversations: [], ...UNAUTH };
+  const realAccountId = sess.userId;
   const supabase = getSupabaseClient();
 
   // Start Sanity fetch early so it runs in parallel with the Supabase query below.
@@ -162,7 +182,12 @@ export async function getConversationsAction(realAccountId: string) {
 }
 
 export async function getChatMessagesAction(conversationId: string) {
+  const sess = await getSession();
+  if (!sess) return { messages: [], ...UNAUTH };
   if (!conversationId || !ID_RE.test(conversationId)) return { messages: [] };
+  if (!(await conversationPeer(conversationId, sess.userId))) {
+    return { messages: [], error: "Percakapan tidak ditemukan." };
+  }
   const supabase = getSupabaseClient();
 
   try {
@@ -184,14 +209,32 @@ export async function getChatMessagesAction(conversationId: string) {
 
 export async function sendChatMessageAction(body: {
   conversationId?: string;
-  senderId: string;
+  senderId?: string; // diabaikan: pengirim selalu dari sesi server
   recipientId: string;
   encryptedContent: string;
 }) {
-  const { conversationId, senderId, recipientId, encryptedContent } = body;
-  if (!senderId || !recipientId || !encryptedContent) {
+  const sess = await getSession();
+  if (!sess) return UNAUTH;
+  const senderId = sess.userId;
+  const { conversationId, encryptedContent } = body;
+  let recipientId = body.recipientId;
+  if (!recipientId || !encryptedContent) {
     return { error: "Data pesan tidak lengkap." };
   }
+  if (!(await hit(`chat:${senderId}`, { max: 120, windowSec: 60, lockSec: 60 }))) {
+    return { error: "Terlalu cepat. Coba lagi sebentar." };
+  }
+  if (conversationId) {
+    // Penerima ditentukan dari percakapan (bukan dari klien) dan pengirim harus peserta.
+    if (!ID_RE.test(conversationId)) return { error: "ID tidak valid." };
+    const peer = await conversationPeer(conversationId, senderId);
+    if (!peer) return { error: "Percakapan tidak ditemukan." };
+    recipientId = peer;
+  } else {
+    const { data: rcp } = await getSupabaseClient().from("user_accounts").select("id").eq("id", recipientId).maybeSingle();
+    if (!rcp) return { error: "Penerima tidak ditemukan." };
+  }
+  if (recipientId === senderId) return { error: "Tidak bisa mengirim pesan ke diri sendiri." };
   // Validate encrypted payload: must be string, bounded length (prevents abuse; content itself is client-encrypted)
   if (typeof encryptedContent !== "string" || encryptedContent.length > 10000) {
     return { error: "Payload pesan tidak valid." };
@@ -276,9 +319,15 @@ export async function sendChatMessageAction(body: {
   }
 }
 
-export async function searchUsersAction(query: string, currentUserId: string) {
-  if (!query || query.trim().length < 2) {
+export async function searchUsersAction(query: string, _ignored?: string) {
+  const sess = await getSession();
+  if (!sess) return { users: [], ...UNAUTH };
+  const currentUserId = sess.userId;
+  if (!query || typeof query !== "string" || query.trim().length < 2) {
     return { users: [] };
+  }
+  if (!(await hit(`search:${currentUserId}`, { max: 60, windowSec: 60, lockSec: 60 }))) {
+    return { users: [], error: "Terlalu banyak pencarian." };
   }
 
   // Buang karakter yang bisa memecah sintaks filter PostgREST (koma, kurung, wildcard, dll).

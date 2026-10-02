@@ -4,6 +4,7 @@ import React, { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { ShieldCheck, ShieldAlert } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
+import { getSessionAction } from "@/actions/authActions";
 
 export function StudioAuthGuard({ children }: { children: React.ReactNode }) {
   const router = useRouter();
@@ -14,11 +15,12 @@ export function StudioAuthGuard({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     let timeoutId: NodeJS.Timeout;
 
-    const verifyAccess = () => {
+    const verifyAccess = async () => {
       try {
-        const savedProfile = localStorage.getItem("tsg_user_profile");
+        // Kebenaran dari SESI SERVER (bukan localStorage).
+        const sess: any = await getSessionAction();
 
-        if (!savedProfile) {
+        if (!sess || !sess.authenticated || !sess.profile) {
           setErrorMsg("Sesi login tidak ditemukan. Mengalihkan ke Beranda...");
           timeoutId = setTimeout(() => {
             router.replace("/");
@@ -26,17 +28,7 @@ export function StudioAuthGuard({ children }: { children: React.ReactNode }) {
           return;
         }
 
-        const profile = JSON.parse(savedProfile);
-
-        if (!profile || !profile.name) {
-          setErrorMsg("Sesi login tidak valid. Mengalihkan ke Beranda...");
-          timeoutId = setTimeout(() => {
-            router.replace("/");
-          }, 2000);
-          return;
-        }
-
-        if (profile.isTsgMember !== true) {
+        if (sess.profile.isTsgMember !== true) {
           setErrorMsg("Akses ditolak: Hanya Anggota TSG terverifikasi yang dapat mengakses Studio. Mengalihkan ke Beranda...");
           timeoutId = setTimeout(() => {
             router.replace("/");

@@ -2,6 +2,10 @@
 
 import { createClient } from "@supabase/supabase-js";
 import { sanitize, sanitizeUrl } from "@/lib/sanitize";
+import { guarded, requireSession } from "@/lib/server/session";
+import { clientIpHash, hit } from "@/lib/server/rateLimit";
+import { findAccountById, isCreator, lookupRoster } from "@/lib/server/account";
+import { AuthError } from "@/lib/server/secrets";
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || "";
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || "";
@@ -18,7 +22,15 @@ const VIRTUAL_ACCOUNT_ID = "00000000-0000-0000-0000-000000000001";
  * Upload base64 image snapshot to Catbox.moe anonymously
  */
 export async function uploadToCatboxAction(base64Data: string, filename = "snapshot.jpg") {
-  if (!base64Data) return { error: "Data gambar kosong" };
+  if (!base64Data || typeof base64Data !== "string") return { error: "Data gambar kosong" };
+  // Endpoint publik (dipakai sebelum login): batasi ukuran, tipe, dan laju per IP.
+  if (base64Data.length > 2_500_000 || !/^data:image\/(jpeg|jpg|png|webp);base64,/.test(base64Data)) {
+    return { error: "Format atau ukuran gambar tidak valid." };
+  }
+  if (!(await hit(`catbox:${await clientIpHash()}`, { max: 8, windowSec: 3600, lockSec: 3600 }))) {
+    return { error: "Terlalu banyak unggahan. Coba lagi nanti." };
+  }
+  filename = sanitize(String(filename || "snapshot.jpg"), 60);
 
   try {
     // Convert base64 to Blob / Buffer
@@ -69,9 +81,16 @@ export async function submitRegistrationVerificationAction(body: {
   const supabase = getSupabaseClient();
   const nowIso = new Date().toISOString();
 
+  if (!(await hit(`verif:${await clientIpHash()}`, { max: 6, windowSec: 3600, lockSec: 3600 }))) {
+    return { error: "Terlalu banyak pengajuan. Coba lagi nanti." };
+  }
+  // Hanya nama yang ada di roster anggota yang boleh diajukan; generasi diambil dari roster (bukan klien).
+  const roster = await lookupRoster(String(name));
+  if (!roster) return { error: "Nama tidak ditemukan di daftar anggota TSG." };
+
   // Sanitize user inputs
-  const safeName = sanitize(name, 100);
-  const safeGeneration = sanitize(generation, 50);
+  const safeName = sanitize(roster.name || name, 100);
+  const safeGeneration = sanitize(roster.categoryName || generation, 50);
   const safeBrowser = sanitize(browser, 100);
   const safeSnapshotUrl = sanitizeUrl(snapshotUrl);
   const safeDeviceId = sanitize(deviceId, 64);
@@ -85,7 +104,8 @@ export async function submitRegistrationVerificationAction(body: {
     const { data: existing } = await supabase
       .from("tsg_member_verifications")
       .select("*")
-      .ilike("name", safeName)
+      .ilike("name", safeName.replace(/[\\%_]/g, (c) => `\\${c}`))
+      .eq("device_id", safeDeviceId)
       .eq("status", "pending")
       .limit(1);
 
@@ -120,6 +140,7 @@ export async function submitRegistrationVerificationAction(body: {
     const { data: creators, error: creatorErr } = await supabase
       .from("user_accounts")
       .select("id, name, generation")
+      .eq("is_tsg_member", true)
       .ilike("generation", "creator");
 
     if (creatorErr) {
@@ -210,7 +231,7 @@ export async function checkVerificationStatusAction(name: string, deviceId: stri
     const { data, error } = await supabase
       .from("tsg_member_verifications")
       .select("*")
-      .ilike("name", name.trim())
+      .ilike("name", String(name).trim().replace(/[\\%_]/g, (c) => `\\${c}`))
       .order("created_at", { ascending: false })
       .limit(1);
 
@@ -221,6 +242,10 @@ export async function checkVerificationStatusAction(name: string, deviceId: stri
     const verif = data[0];
     const now = new Date().getTime();
     const expiresAt = new Date(verif.expires_at).getTime();
+    // Status "approved" hanya berlaku bagi perangkat yang mengajukan.
+    if (verif.status === "approved" && deviceId && verif.device_id !== deviceId) {
+      return { status: "none" };
+    }
 
     // Check timeout (30 days)
     if (verif.status === "pending" && now > expiresAt) {
@@ -229,10 +254,10 @@ export async function checkVerificationStatusAction(name: string, deviceId: stri
         .update({ status: "expired", updated_at: new Date().toISOString() })
         .eq("id", verif.id);
 
-      return { status: "expired", verification: { ...verif, status: "expired" } };
+      return { status: "expired" };
     }
 
-    return { status: verif.status, verification: verif };
+    return { status: verif.status };
   } catch (err: any) {
     return { status: "none", error: err.message };
   }
@@ -243,46 +268,35 @@ export async function checkVerificationStatusAction(name: string, deviceId: stri
  */
 export async function respondVerificationAction(body: {
   verificationId: string;
-  responderUserId: string;
-  responderUsername?: string;
+  responderUserId?: string; // diabaikan: responder selalu dari sesi server
+  responderUsername?: string; // diabaikan
   action: "approve" | "reject";
 }) {
-  const { verificationId, responderUserId, responderUsername, action } = body;
-  if (!verificationId || !responderUserId || !action) {
-    return { error: "Data respons tidak lengkap" };
-  }
+  return guarded(async () => {
+    const sess = await requireSession();
+    const { verificationId, action } = body || ({} as any);
+    if (!verificationId || typeof verificationId !== "string" || (action !== "approve" && action !== "reject")) {
+      return { error: "Data respons tidak lengkap" };
+    }
+    // Hanya Creator (anggota TSG terverifikasi dengan generasi "Creator" di DB server) yang boleh merespons.
+    const responder = await findAccountById(sess.userId);
+    if (!responder || !isCreator(responder)) {
+      throw new AuthError("Hanya Creator yang dapat merespons pengajuan ini.", "FORBIDDEN");
+    }
+    const responderUserId = responder.id;
 
-  const supabase = getSupabaseClient();
-  const nowIso = new Date().toISOString();
-  const newStatus = action === "approve" ? "approved" : "rejected";
+    const supabase = getSupabaseClient();
+    const nowIso = new Date().toISOString();
+    const newStatus = action === "approve" ? "approved" : "rejected";
 
-  // Resolve responder's nickname/name from DB
-  let resolvedUsername = responderUsername && responderUsername !== "Creator" ? responderUsername : "";
-  if (!resolvedUsername) {
+    let resolvedUsername = "";
     const { data: pubAcc } = await supabase
       .from("public_accounts")
       .select("nickname, name")
       .eq("real_account_id", responderUserId)
       .limit(1);
-
-    if (pubAcc && pubAcc.length > 0) {
-      resolvedUsername = pubAcc[0].nickname || pubAcc[0].name || "";
-    }
-
-    if (!resolvedUsername) {
-      const { data: userAcc } = await supabase
-        .from("user_accounts")
-        .select("name")
-        .eq("id", responderUserId)
-        .limit(1);
-
-      if (userAcc && userAcc.length > 0) {
-        resolvedUsername = userAcc[0].name || "";
-      }
-    }
-  }
-
-  const finalResponderName = resolvedUsername || "Creator";
+    if (pubAcc && pubAcc.length > 0) resolvedUsername = pubAcc[0].nickname || pubAcc[0].name || "";
+    const finalResponderName = resolvedUsername || responder.name || "Creator";
 
   try {
     const { data: verif, error: fetchErr } = await supabase
@@ -293,6 +307,9 @@ export async function respondVerificationAction(body: {
 
     if (fetchErr || !verif) {
       return { error: "Pengajuan verifikasi tidak ditemukan" };
+    }
+    if (verif.status !== "pending") {
+      return { error: "Pengajuan ini sudah diproses." };
     }
 
     // Update verification status
@@ -345,4 +362,5 @@ export async function respondVerificationAction(body: {
   } catch (err: any) {
     return { error: err.message || "Gagal merespon verifikasi" };
   }
+  });
 }

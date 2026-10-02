@@ -12,12 +12,15 @@ import {
   RefreshCw,
   X,
 } from "lucide-react";
-import { processAuthAction } from "@/actions/authActions";
+import { loginFaceAction, addFaceAction } from "@/actions/authActions";
+import { getStepUpProof } from "@/lib/stepUp";
 
 interface FaceVerificationModalProps {
   isOpen: boolean;
   mode: "register" | "login";
-  storedFaceVectors?: Array<number[]>;
+  storedFaceVectors?: Array<number[]>; // tidak dipakai lagi (server tidak pernah mengirim vektor)
+  /** Password saat ini; wajib pada mode "register" (menambah wajah ke akun yang sedang login). */
+  addFacePassword?: string;
   initialName?: string;
   isTsgMember?: boolean;
   tsgInfo?: any;
@@ -40,7 +43,7 @@ async function parseJsonResponse(res: Response) {
 export default function FaceVerificationModal({
   isOpen,
   mode,
-  storedFaceVectors = [],
+  addFacePassword = "",
   initialName = "",
   isTsgMember = false,
   tsgInfo,
@@ -388,101 +391,26 @@ export default function FaceVerificationModal({
                       Array.from(vMouth || baseVec),
                     ];
 
+                    // Pencocokan dilakukan di SERVER. Klien hanya mengirim vektor dan menerima lolos/gagal.
                     if (mode === "register") {
-                      // PENDAFTARAN PERTAMA KALI: Simpan 4 vektor
-                      const data: any = await processAuthAction({
-                        action: "register_face",
-                        name: initialName || "",
-                        faceVector: fourVectors as any,
-                        isTsgMember: isTsgMember,
-                        tsgInfo: tsgInfo,
+                      // MENAMBAH WAJAH (sekali per akun; ditolak keras bila sudah ada).
+                      const proof = await getStepUpProof("add_face");
+                      const data: any = await addFaceAction({
+                        faceVectors: fourVectors,
+                        password: addFacePassword,
+                        proof,
                       });
-
-                      if (!data.success) {
-                        throw new Error(data.error || "Gagal menyimpan pendaftaran wajah.");
+                      if (!data?.success) {
+                        throw new Error(data?.error || "Gagal menyimpan pendaftaran wajah.");
                       }
                     } else {
-                      // LOGIN / VERIFIKASI: Bandingkan dengan patokan utama (storedFaceVectors[0])
-                      if (!storedFaceVectors || storedFaceVectors.length === 0) {
-                        throw new Error("Histori wajah tidak ditemukan di database.");
+                      const data: any = await loginFaceAction(fourVectors);
+                      if (!data?.success) {
+                        throw new Error(data?.error || "Verifikasi Wajah Gagal: Wajah tidak cocok dengan patokan pendaftaran utama.");
                       }
-
-                      const faceapi = await import("@vladmandic/face-api");
-                      if (
-                        !faceapi.nets.tinyFaceDetector.isLoaded ||
-                        !faceapi.nets.faceLandmark68Net.isLoaded ||
-                        !faceapi.nets.faceRecognitionNet.isLoaded
-                      ) {
-                        await loadFaceRecognitionModel();
-                      }
-                      let minDistance = 999;
-
-                      // Check against storedFaceVectors[0] (patokan utama pendaftaran/penambahan wajah)
-                      const histEntry = storedFaceVectors[0];
-                      if (histEntry && Array.isArray(histEntry) && histEntry.length > 0) {
-                        if (Array.isArray(histEntry[0])) {
-                          const distances: number[] = [];
-                          for (let i = 0; i < 4; i++) {
-                            const newV = fourVectors[i];
-                            const histV = (histEntry as unknown as Array<number[]>)[i] || (histEntry as unknown as Array<number[]>)[0];
-                            if (newV && histV) {
-                              const dist = faceapi.euclideanDistance(
-                                new Float32Array(newV),
-                                new Float32Array(histV)
-                              );
-                              distances.push(dist);
-                            }
-                          }
-                          if (distances.length > 0) {
-                            minDistance = Math.min(...distances);
-                          }
-                        } else {
-                          for (const newV of fourVectors) {
-                            const dist = faceapi.euclideanDistance(
-                              new Float32Array(newV),
-                              new Float32Array(histEntry as unknown as number[])
-                            );
-                            if (dist < minDistance) minDistance = dist;
-                          }
-                        }
-                      }
-
-                      const THRESHOLD = 0.52;
-                      if (minDistance > THRESHOLD) {
-                        throw new Error("Verifikasi Wajah Gagal: Wajah tidak cocok dengan patokan pendaftaran utama.");
-                      }
-
-                      // Update histori (menambah histori login terbaru, FIFO max 3, namun patokan utama tetap tidak berubah)
-                      await processAuthAction({
-                        action: "login_face_update",
-                        name: initialName || "",
-                        newFaceVector: fourVectors as any,
-                      });
                     }
 
-                    const existingSavedProfile = localStorage.getItem("tsg_user_profile");
-                    let existingCustomPhoto = "";
-                    if (existingSavedProfile) {
-                      try {
-                        const parsed = JSON.parse(existingSavedProfile);
-                        if (parsed.iconDataUrl) {
-                          existingCustomPhoto = parsed.iconDataUrl;
-                        }
-                      } catch (e) {}
-                    }
-
-                    const profile = {
-                      id: accountData?.id || undefined,
-                      name: initialName,
-                      isTsgMember: typeof accountData?.isTsgMember === "boolean" ? accountData.isTsgMember : isTsgMember,
-                      generation: accountData?.generation || tsgInfo?.categoryName || "",
-                      email: accountData?.email || tsgInfo?.email || "",
-                      authMethod: "face",
-                      iconDataUrl: accountData?.photo || tsgInfo?.photo || existingCustomPhoto || "",
-                      createdAt: accountData?.createdAt || undefined,
-                    };
-
-                    localStorage.setItem("tsg_user_profile", JSON.stringify(profile));
+                    const profile = { step: "face" };
 
                     setStep("SUCCESS");
 

@@ -21,7 +21,6 @@ import { cn } from "@/lib/utils";
 import type { TeamMember } from "@/types";
 import FaceVerificationModal from "@/components/auth/FaceVerificationModal";
 import PasswordAuthModal from "@/components/auth/PasswordAuthModal";
-import AuthMethodChoiceModal from "@/components/auth/AuthMethodChoiceModal";
 import LogoutChoiceModal from "@/components/auth/LogoutChoiceModal";
 import DeleteAccountModal from "@/components/auth/DeleteAccountModal";
 import DeviceApprovalModal from "@/components/auth/DeviceApprovalModal";
@@ -31,12 +30,22 @@ import { PublicProfilePreviewModal } from "@/components/auth/PublicProfilePrevie
 import { LoginVerifURLModal } from "@/components/auth/LoginVerifURLModal";
 import { LogoModal } from "@/components/layout/LogoModal";
 import { TSGRegistrationVerifModal } from "@/components/auth/TSGRegistrationVerifModal";
-import { getOrCreateDeviceKey } from "@/lib/deviceKeyManager";
+import { buildLoginProof } from "@/lib/deviceAuth";
+import { getStepUpProof } from "@/lib/stepUp";
 import { useSessionHeartbeat } from "@/hooks/useSessionHeartbeat";
 import { useScrollLock } from "@/hooks/useScrollLock";
-import { checkAccountAction, checkProfileSyncMetaAction, processAuthAction, signOutAction } from "@/actions/authActions";
+import {
+  checkAccountAction,
+  beginLoginAction,
+  finishLoginAction,
+  pollDeviceApprovalAction,
+  getSessionAction,
+  getMyAccountAction,
+  logoutAction,
+  updateProfileAction,
+} from "@/actions/authActions";
 import { getPublicAccountAction } from "@/actions/publicAccountActions";
-import { sessionLogoutAction, sessionRespondAction } from "@/actions/sessionActions";
+import { respondDeviceRequestAction } from "@/actions/sessionActions";
 import { getGenerationsAction, getTeamMembersAction } from "@/actions/teamActions";
 import { formatAccountCreatedAt } from "@/lib/format-account-date";
 
@@ -47,7 +56,7 @@ interface UserProfile {
   iconDataUrl: string;
   email?: string;
   isTsgMember?: boolean;
-  authMethod?: "face" | "password";
+  authMethod?: "face" | "password" | "both";
   createdAt?: string;
 }
 
@@ -86,7 +95,6 @@ export function UserProfileBadge() {
 
   const [isVerifying, setIsVerifying] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
-  const [isChoiceModalOpen, setIsChoiceModalOpen] = useState(false);
   const [isFaceModalOpen, setIsFaceModalOpen] = useState(false);
   const [isPasswordModalOpen, setIsPasswordModalOpen] = useState(false);
   const [isLogoutChoiceOpen, setIsLogoutChoiceOpen] = useState(false);
@@ -105,9 +113,18 @@ export function UserProfileBadge() {
 
   const [authMode, setAuthMode] = useState<"register" | "login">("login");
   const [accountDataState, setAccountDataState] = useState<any>(null);
-  const [storedFaceVectors, setStoredFaceVectors] = useState<Array<number[]>>(
-    [],
-  );
+  const [isAddFaceFlow, setIsAddFaceFlow] = useState(false);
+  const [addFacePassword, setAddFacePassword] = useState("");
+  const [isSessionActive, setIsSessionActive] = useState(false);
+  const [isDeviceWaitingOpen, setIsDeviceWaitingOpen] = useState(false);
+  const [emailHint, setEmailHint] = useState("");
+  const loginFlow = useRef<{
+    required: { password: boolean; face: boolean; email: boolean };
+    done: { password?: boolean; face?: boolean; email?: boolean };
+    loginId: string;
+    nonce: string;
+  } | null>(null);
+  const devicePollRef = useRef<any>(null);
   const [isTsgMemberState, setIsTsgMemberState] = useState(false);
   const [tsgInfoState, setTsgInfoState] = useState<any>(null);
   const [loginPreferencesState, setLoginPreferencesState] = useState<{
@@ -126,7 +143,6 @@ export function UserProfileBadge() {
 
   const isAnyModalOpen =
     isModalOpen ||
-    isChoiceModalOpen ||
     isFaceModalOpen ||
     isPasswordModalOpen ||
     isLogoutChoiceOpen ||
@@ -137,12 +153,13 @@ export function UserProfileBadge() {
     isTsgMemberBlockModalOpen ||
     isLogoModalOpen ||
     isLoginOtpModalOpen ||
+    isDeviceWaitingOpen ||
     isNotTsgMemberAlertOpen;
 
   useScrollLock(isAnyModalOpen);
 
-  useSessionHeartbeat(profile.email || null, (req) => {
-    setPendingLoginRequest(req);
+  useSessionHeartbeat(isSessionActive, (req) => {
+    setPendingLoginRequest((prev: any) => prev || req);
   });
 
   useEffect(() => {
@@ -175,72 +192,64 @@ export function UserProfileBadge() {
     }
 
     async function restoreAndVerifySession() {
+      let cached: UserProfile | null = null;
       try {
         const saved = localStorage.getItem("tsg_user_profile");
         if (saved) {
           const parsed = JSON.parse(saved);
           if (parsed && parsed.name) {
-            // Prioritas: pakai cache localStorage langsung agar render instan
-            setProfile(parsed);
-            if (parsed.id) {
-              fetchPublicAccountInfo(parsed.id);
-            }
-
-            // Cek Supabase di latar (hash & metadata tanpa download foto utuh)
-            try {
-              const meta: any = await checkProfileSyncMetaAction(parsed.name.trim());
-              if (meta && meta.exists && !meta.error) {
-                const localGen = (parsed.generation || "").trim().toLowerCase();
-                const localEmail = (parsed.email || "").trim().toLowerCase();
-                const localIsMember = Boolean(parsed.isTsgMember);
-                const remoteGen = (meta.generation || "").trim().toLowerCase();
-                const remoteEmail = (meta.email || "").trim().toLowerCase();
-                const remoteIsMember = Boolean(meta.isTsgMember);
-                const remotePhotoHash = meta.photoHash || "";
-                const localPhotoHash = parsed.iconDataUrl ? await sha256Client(parsed.iconDataUrl) : "";
-
-                const isSame =
-                  (parsed.id ? parsed.id === meta.id : true) &&
-                  localGen === remoteGen &&
-                  localEmail === remoteEmail &&
-                  localIsMember === remoteIsMember &&
-                  localPhotoHash === remotePhotoHash;
-
-                if (isSame) {
-                  // Sama: Gunakan localStorage, pastikan ID tersinkron
-                  if (!parsed.id && meta.id) {
-                    const synced = { ...parsed, id: meta.id };
-                    localStorage.setItem("tsg_user_profile", JSON.stringify(synced));
-                    setProfile(synced);
-                    fetchPublicAccountInfo(meta.id);
-                  }
-                  return;
-                }
-
-                // Berbeda: Ambil dari Supabase & perbarui cache di localStorage
-                const data: any = await checkAccountAction(parsed.name.trim());
-                if (data && !data.error && (data.id || data.photo || data.generation || data.email)) {
-                  const updated: UserProfile = {
-                    ...parsed,
-                    id: data.id || parsed.id,
-                    name: data.tsgInfo?.name || parsed.name,
-                    generation: data.generation || parsed.generation || "",
-                    iconDataUrl: data.photo || parsed.iconDataUrl || "",
-                    email: data.email || parsed.email || "",
-                    isTsgMember: typeof data.isTsgMember === "boolean" ? data.isTsgMember : parsed.isTsgMember,
-                    authMethod: data.authMethod || parsed.authMethod,
-                    createdAt: data.createdAt || parsed.createdAt,
-                  };
-                  localStorage.setItem("tsg_user_profile", JSON.stringify(updated));
-                  setProfile(updated);
-                }
-              }
-            } catch {}
+            cached = parsed;
+            setProfile(parsed); // render instan dari cache (hanya tampilan, bukan kredensial)
           }
         }
       } catch (e) {
         localStorage.removeItem("tsg_user_profile");
       }
+
+      try {
+        // Kebenaran ada di server: tanpa sesi sah, cache dibuang.
+        const sess: any = await getSessionAction();
+        if (!sess || !sess.authenticated || !sess.profile) {
+          localStorage.removeItem("tsg_user_profile");
+          if (cached) {
+            setProfile({ name: "", generation: "", iconDataUrl: "", email: "", isTsgMember: false });
+          }
+          setIsSessionActive(false);
+          return;
+        }
+        setIsSessionActive(true);
+        const sp = sess.profile;
+        if (cached) {
+          const localPhotoHash = cached.iconDataUrl ? await sha256Client(cached.iconDataUrl) : "";
+          const isSame =
+            cached.id === sp.id &&
+            (cached.name || "") === sp.name &&
+            (cached.generation || "").trim().toLowerCase() === (sp.generation || "").trim().toLowerCase() &&
+            (cached.email || "").trim().toLowerCase() === (sp.email || "").trim().toLowerCase() &&
+            Boolean(cached.isTsgMember) === Boolean(sp.isTsgMember) &&
+            localPhotoHash === (sp.photoHash || "");
+          if (isSame) {
+            fetchPublicAccountInfo();
+            return;
+          }
+        }
+        const full: any = await getMyAccountAction();
+        if (full && !full.error) {
+          const updated: UserProfile = {
+            id: full.id,
+            name: full.name,
+            generation: full.generation || "",
+            iconDataUrl: full.photo || "",
+            email: full.email || "",
+            isTsgMember: !!full.isTsgMember,
+            authMethod: full.authMethod,
+            createdAt: full.createdAt,
+          };
+          localStorage.setItem("tsg_user_profile", JSON.stringify(updated));
+          setProfile(updated);
+          fetchPublicAccountInfo();
+        }
+      } catch {}
     }
 
     restoreAndVerifySession();
@@ -279,31 +288,23 @@ export function UserProfileBadge() {
     setErrorMsg("");
 
     try {
-      const data: any = await checkAccountAction(profile.name.trim());
+      const data: any = await getMyAccountAction();
 
       if (data && !data.error) {
-        const freshPhoto = data.photo || data.tsgInfo?.photo || profile.iconDataUrl;
         const updatedProfile: UserProfile = {
-          ...profile,
-          id: data.id || profile.id,
-          name: data.tsgInfo?.name || profile.name,
-          generation: data.generation || data.tsgInfo?.categoryName || profile.generation,
-          iconDataUrl: freshPhoto,
-          email: data.tsgInfo?.email || profile.email,
+          id: data.id,
+          name: data.name,
+          generation: data.generation || profile.generation,
+          iconDataUrl: data.photo || profile.iconDataUrl,
+          email: data.email || "",
           isTsgMember: !!data.isTsgMember,
           authMethod: data.authMethod || profile.authMethod,
           createdAt: data.createdAt || profile.createdAt,
         };
 
         setProfile(updatedProfile);
-        localStorage.setItem(
-          "tsg_user_profile",
-          JSON.stringify(updatedProfile),
-        );
-
-        if (updatedProfile.id) {
-          fetchPublicAccountInfo(updatedProfile.id);
-        }
+        localStorage.setItem("tsg_user_profile", JSON.stringify(updatedProfile));
+        fetchPublicAccountInfo();
       }
     } catch (err: any) {
       setErrorMsg("Gagal memperbarui data akun.");
@@ -312,11 +313,10 @@ export function UserProfileBadge() {
     }
   };
 
-  const fetchPublicAccountInfo = async (realAccountId: string) => {
-    if (!realAccountId) return;
+  const fetchPublicAccountInfo = async (_ignored?: string) => {
     setIsLoadingPublicAccount(true);
     try {
-      const data: any = await getPublicAccountAction(realAccountId);
+      const data: any = await getPublicAccountAction();
       if (data && data.publicAccount) {
         setPublicAccountInfo(data.publicAccount);
       }
@@ -327,31 +327,11 @@ export function UserProfileBadge() {
   };
 
   useEffect(() => {
-    if (profile.id) {
-      fetchPublicAccountInfo(profile.id);
-    } else if (profile.name) {
-      const nameSnapshot = profile.name;
-      checkAccountAction(nameSnapshot.trim())
-        .then((data: any) => {
-          if (data && (data.id || data.photo || data.generation)) {
-            setProfile((prev) => {
-              if (prev.id === (data.id || prev.id)) return prev;
-              const updated = {
-                ...prev,
-                id: data.id || prev.id,
-                generation: data.generation || prev.generation,
-                iconDataUrl: data.photo || prev.iconDataUrl,
-                createdAt: data.createdAt || prev.createdAt,
-              };
-              localStorage.setItem("tsg_user_profile", JSON.stringify(updated));
-              return updated;
-            });
-          }
-        })
-        .catch(() => {});
+    if (profile.id && isSessionActive) {
+      fetchPublicAccountInfo();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [profile.id, profile.name]);
+  }, [profile.id, isSessionActive]);
 
   const handleStartVerification = async () => {
     if (!tempName.trim()) {
@@ -391,41 +371,23 @@ export function UserProfileBadge() {
       setLoginPreferencesState(data.loginPreferences || null);
 
       if (!data.exists) {
-        // AKUN BELUM ADA: Cek apakah Anggota TSG untuk Verifikasi Pendaftaran
+        // AKUN BELUM ADA: pendaftaran SELALU dengan password (wajah ditambahkan kemudian dari Kelola Akun).
         setAuthMode("register");
         if (isTsgMemberCheckbox && data.isTsgMember) {
           setIsTsgVerifOpen(true);
         } else {
-          setIsChoiceModalOpen(true);
+          setIsPasswordModalOpen(true);
         }
       } else {
-        // AKUN SUDAH ADA: Buka Modal Sesuai Preferensi Login Akun
+        // AKUN SUDAH ADA: server memulai proses login dan menentukan langkah yang wajib.
         setAuthMode("login");
-        setStoredFaceVectors(data.faceVectors || []);
-
-        const prefs = data.loginPreferences || {
-          password: !!data.hasPassword,
-          face: !!data.hasFace,
-          email: false,
-        };
-
-        const reqPass = !!data.hasPassword && prefs.password !== false;
-        const reqFace = !!data.hasFace && prefs.face !== false;
-
-        if (reqPass && reqFace) {
-          // BILA MEMBUTUHKAN DUA METODE (PASSWORD & WAJAH):
-          // Urutan: Verifikasi Password dulu, baru Wajah!
-          setIsSequentialLogin(true);
-          setIsPasswordModalOpen(true);
-        } else if (reqPass) {
-          setIsSequentialLogin(false);
-          setIsPasswordModalOpen(true);
-        } else if (reqFace) {
-          setIsSequentialLogin(false);
-          setIsFaceModalOpen(true);
-        } else {
-          setIsChoiceModalOpen(true);
+        const begin: any = await beginLoginAction(tempName.trim());
+        if (!begin?.success) {
+          throw new Error(begin?.error || "Gagal memulai proses login.");
         }
+        loginFlow.current = { required: begin.required, done: {}, loginId: begin.loginId, nonce: begin.nonce };
+        setEmailHint(begin.emailMasked || "");
+        proceedLogin();
       }
     } catch (err: any) {
       setErrorMsg(err.message || "Terjadi kesalahan saat memeriksa akun.");
@@ -434,80 +396,56 @@ export function UserProfileBadge() {
     }
   };
 
-  const handleSelectChoiceMethod = (method: "face" | "password") => {
-    setIsChoiceModalOpen(false);
-    if (method === "face") {
-      setIsFaceModalOpen(true);
-    } else {
-      setIsPasswordModalOpen(true);
-    }
-  };
-
-  const handlePasswordVerified = (profileData: any) => {
-    if (isSequentialLogin) {
-      setIsPasswordModalOpen(false);
-      setIsSequentialLogin(false);
-      setIsFaceModalOpen(true);
-    } else {
-      handleAuthSuccess(profileData);
-    }
-  };
-
-  const handleAuthSuccess = (newProfileData: any) => {
-    const targetEmail =
-      newProfileData.email || accountDataState?.email || tsgInfoState?.email || profile.email || "";
-
-    const finalPhoto =
-      accountDataState?.photo || newProfileData.iconDataUrl || tsgInfoState?.photo || newProfileData.photo || profile.iconDataUrl || "";
-
-    const finalGen =
-      accountDataState?.generation || newProfileData.generation || tempGen || tsgInfoState?.categoryName || profile.generation || "";
-
-    const updatedProfile: UserProfile = {
-      id: newProfileData.id || accountDataState?.id || profile.id,
-      name: tempName.trim() || newProfileData.name || accountDataState?.name || profile.name || "",
-      generation: finalGen,
-      iconDataUrl: finalPhoto,
-      email: targetEmail,
-      isTsgMember: typeof accountDataState?.isTsgMember === "boolean" ? accountDataState.isTsgMember : (typeof newProfileData.isTsgMember === "boolean" ? newProfileData.isTsgMember : isTsgMemberState),
-      authMethod: newProfileData.authMethod || profile.authMethod,
-      createdAt: newProfileData.createdAt || accountDataState?.createdAt || profile.createdAt,
-    };
-
-    // JIKA DALAM MODE LOGIN DAN AKUN MEMILIKI EMAIL:
-    // Cek preferensi email: jika akun memiliki email DAN preferensi email diaktifkan, minta verifikasi email.
-    const requiresEmailVerif =
-      authMode === "login" &&
-      targetEmail &&
-      targetEmail.includes("@") &&
-      loginPreferencesState?.email === true;
-
-    if (requiresEmailVerif) {
-      setPendingLoginProfile(updatedProfile);
-      setIsPasswordModalOpen(false);
-      setIsFaceModalOpen(false);
-      setIsLoginOtpModalOpen(true);
-      return;
-    }
-
-    finalizeLogin(updatedProfile);
-  };
-
-  const finalizeLogin = (finalProfile: UserProfile) => {
-    setProfile(finalProfile);
-    localStorage.setItem("tsg_user_profile", JSON.stringify(finalProfile));
-
-    if (finalProfile.name) {
-      processAuthAction({
-        action: "update_profile",
-        name: finalProfile.name,
-        generation: finalProfile.generation,
-        photo: finalProfile.iconDataUrl,
-      }).catch(() => {});
-    }
-
-    setPendingLoginProfile(null);
+  /** Buka langkah login berikutnya sesuai yang diwajibkan server; bila semua selesai, selesaikan dengan bukti perangkat. */
+  const proceedLogin = () => {
+    const flow = loginFlow.current;
+    if (!flow) return;
+    setIsPasswordModalOpen(false);
+    setIsFaceModalOpen(false);
     setIsLoginOtpModalOpen(false);
+
+    if (flow.required.password && !flow.done.password) {
+      setIsAddFaceFlow(false);
+      setIsPasswordModalOpen(true);
+    } else if (flow.required.face && !flow.done.face) {
+      setIsAddFaceFlow(false);
+      setIsFaceModalOpen(true);
+    } else if (flow.required.email && !flow.done.email) {
+      setIsLoginOtpModalOpen(true);
+    } else {
+      void finishLogin();
+    }
+  };
+
+  const markStepDone = (step: "password" | "face" | "email") => {
+    if (loginFlow.current) {
+      loginFlow.current.done = { ...loginFlow.current.done, [step]: true };
+    }
+    proceedLogin();
+  };
+
+  const completeLogin = async (serverProfile: any) => {
+    // Sesi server sudah aktif: ambil data lengkap (termasuk foto) dari server.
+    let full: any = null;
+    try {
+      full = await getMyAccountAction();
+    } catch {}
+    const base = full && !full.error ? full : serverProfile || {};
+    const finalProfile: UserProfile = {
+      id: base.id,
+      name: base.name || tempName.trim(),
+      generation: base.generation || "",
+      iconDataUrl: base.photo || tsgInfoState?.photo || "",
+      email: base.email || "",
+      isTsgMember: !!base.isTsgMember,
+      authMethod: base.authMethod,
+      createdAt: base.createdAt,
+    };
+    setProfile(finalProfile);
+    setIsSessionActive(true);
+    localStorage.setItem("tsg_user_profile", JSON.stringify(finalProfile));
+    loginFlow.current = null;
+    setIsDeviceWaitingOpen(false);
     setTempName("");
     setTempGen("");
     setErrorMsg("");
@@ -516,16 +454,90 @@ export function UserProfileBadge() {
     window.location.reload();
   };
 
+  const failLogin = (message: string) => {
+    loginFlow.current = null;
+    setIsPasswordModalOpen(false);
+    setIsFaceModalOpen(false);
+    setIsLoginOtpModalOpen(false);
+    setIsDeviceWaitingOpen(false);
+    if (devicePollRef.current) clearInterval(devicePollRef.current);
+    setErrorMsg(message);
+    setIsModalOpen(true);
+  };
+
+  const finishLogin = async () => {
+    const flow = loginFlow.current;
+    if (!flow) return;
+    try {
+      const proof = await buildLoginProof(flow.nonce, flow.loginId);
+      const res: any = await finishLoginAction(proof);
+      if (res?.error) {
+        failLogin(res.error);
+        return;
+      }
+      if (res?.status === "ok") {
+        await completeLogin(res.profile);
+        return;
+      }
+      if (res?.status === "waiting") {
+        setIsDeviceWaitingOpen(true);
+        if (devicePollRef.current) clearInterval(devicePollRef.current);
+        devicePollRef.current = setInterval(async () => {
+          try {
+            const r: any = await pollDeviceApprovalAction();
+            if (r?.status === "ok") {
+              clearInterval(devicePollRef.current);
+              await completeLogin(r.profile);
+            } else if (r?.status === "rejected") {
+              clearInterval(devicePollRef.current);
+              failLogin("Permintaan login ditolak oleh perangkat utama.");
+            } else if (r?.error) {
+              clearInterval(devicePollRef.current);
+              failLogin(r.error);
+            }
+          } catch {}
+        }, 3000);
+        return;
+      }
+      failLogin("Gagal menyelesaikan login.");
+    } catch (e: any) {
+      failLogin(e?.message || "Gagal menyelesaikan login (verifikasi perangkat).");
+    }
+  };
+
+  /** Hasil dari PasswordAuthModal (login atau pendaftaran). */
+  const handlePasswordVerified = (data: any) => {
+    if (data?.step === "registered") {
+      loginFlow.current = {
+        required: data.required || { password: true, face: false, email: false },
+        done: { password: true },
+        loginId: data.loginId,
+        nonce: data.nonce,
+      };
+      proceedLogin();
+      return;
+    }
+    markStepDone("password");
+  };
+
+  const handleFaceVerified = () => {
+    if (isAddFaceFlow) {
+      // Menambah wajah ke akun yang sedang login (bukan langkah login).
+      setIsAddFaceFlow(false);
+      setAddFacePassword("");
+      handleRefreshAccount();
+      return;
+    }
+    markStepDone("face");
+  };
+
   const handleSignOut = async () => {
     try {
-      const deviceKey = getOrCreateDeviceKey();
-      if (profile.email) {
-        await sessionLogoutAction(profile.email, deviceKey);
-      }
+      await logoutAction();
     } catch (e) {}
-
-    await signOutAction();
+    if (devicePollRef.current) clearInterval(devicePollRef.current);
     localStorage.removeItem("tsg_user_profile");
+    setIsSessionActive(false);
     setProfile({
       name: "",
       generation: "",
@@ -960,25 +972,23 @@ export function UserProfileBadge() {
         )}
       </AnimatePresence>
 
-      {/* Pop-Up Modal Pilih Metode Autentikasi (Daftar Akun Baru) */}
-      <AuthMethodChoiceModal
-        isOpen={isChoiceModalOpen}
-        userName={tempName}
-        onClose={() => setIsChoiceModalOpen(false)}
-        onSelectMethod={handleSelectChoiceMethod}
-      />
-
       {/* Modal Verifikasi Wajah AI */}
       <FaceVerificationModal
         isOpen={isFaceModalOpen}
-        mode={authMode}
-        storedFaceVectors={storedFaceVectors}
-        initialName={tempName}
+        mode={isAddFaceFlow ? "register" : "login"}
+        addFacePassword={addFacePassword}
+        initialName={isAddFaceFlow ? profile.name : tempName}
         isTsgMember={isTsgMemberState}
         tsgInfo={tsgInfoState}
         accountData={accountDataState}
-        onClose={() => setIsFaceModalOpen(false)}
-        onVerified={handleAuthSuccess}
+        onClose={() => {
+          setIsFaceModalOpen(false);
+          if (isAddFaceFlow) {
+            setIsAddFaceFlow(false);
+            setAddFacePassword("");
+          }
+        }}
+        onVerified={handleFaceVerified}
       />
 
       {/* Modal Verifikasi Pendaftaran Anggota TSG */}
@@ -989,7 +999,7 @@ export function UserProfileBadge() {
         onClose={() => setIsTsgVerifOpen(false)}
         onApproved={() => {
           setIsTsgVerifOpen(false);
-          setIsChoiceModalOpen(true);
+          setIsPasswordModalOpen(true);
         }}
       />
 
@@ -1022,10 +1032,10 @@ export function UserProfileBadge() {
           setIsLogoutChoiceOpen(true);
         }}
         onRefreshProfile={handleRefreshAccount}
-        onAddFaceTrigger={() => {
+        onAddFaceTrigger={(pw: string) => {
           setIsManageAccountOpen(false);
-          setAuthMode("register");
-          setTempName(profile.name);
+          setAddFacePassword(pw);
+          setIsAddFaceFlow(true);
           setIsFaceModalOpen(true);
         }}
       />
@@ -1252,16 +1262,36 @@ export function UserProfileBadge() {
           requestData={pendingLoginRequest}
           onRespond={async (decision) => {
             try {
-              await sessionRespondAction(
-                pendingLoginRequest.id,
+              const proof = await getStepUpProof("approve_device");
+              await respondDeviceRequestAction({
+                deviceId: pendingLoginRequest.deviceId || pendingLoginRequest.id,
                 decision,
-                profile.email || "",
-                pendingLoginRequest.requester_device_info
-              );
+                proof,
+              });
             } catch (e) {}
             setPendingLoginRequest(null);
           }}
         />
+      )}
+
+      {/* Menunggu persetujuan perangkat utama */}
+      {isDeviceWaitingOpen && (
+        <div className="fixed inset-0 z-[9999999] flex items-center justify-center bg-black/85 backdrop-blur-md p-4">
+          <div className="w-full max-w-sm rounded-2xl border border-white/15 bg-slate-900 p-6 text-center text-white shadow-2xl">
+            <Loader2 className="mx-auto mb-3 h-8 w-8 animate-spin text-blue-400" />
+            <h3 className="text-lg font-bold">Menunggu Persetujuan</h3>
+            <p className="mt-2 text-xs leading-relaxed text-white/70">
+              Perangkat ini belum terdaftar. Buka akun Anda di perangkat utama lalu setujui permintaan login.
+            </p>
+            <button
+              type="button"
+              onClick={() => failLogin("Login dibatalkan.")}
+              className="mt-4 rounded-xl bg-white/10 px-4 py-2 text-xs font-semibold hover:bg-white/20"
+            >
+              Batalkan
+            </button>
+          </div>
+        </div>
       )}
 
       {/* Modal Brand Logo Inspect / Foto Profil */}
@@ -1277,38 +1307,27 @@ export function UserProfileBadge() {
           setProfile(updated);
           localStorage.setItem("tsg_user_profile", JSON.stringify(updated));
           if (profile.name) {
-            processAuthAction({
-              action: "update_profile",
-              name: profile.name,
-              photo: newPhotoUrl,
-            })
+            updateProfileAction({ photo: newPhotoUrl })
               .then(() => {
-                if (profile.id) {
-                  fetchPublicAccountInfo(profile.id);
-                }
+                fetchPublicAccountInfo();
               })
               .catch(() => {});
           }
         }}
       />
 
-      {/* Modal Verifikasi OTP Login Email */}
-      {pendingLoginProfile && (
-        <LoginVerifURLModal
-          isOpen={isLoginOtpModalOpen}
-          email={pendingLoginProfile.email || ""}
-          userName={pendingLoginProfile.name || ""}
-          onClose={() => {
-            setIsLoginOtpModalOpen(false);
-            setPendingLoginProfile(null);
-          }}
-          onVerified={() => {
-            if (pendingLoginProfile) {
-              finalizeLogin(pendingLoginProfile);
-            }
-          }}
-        />
-      )}
+      {/* Langkah email pada login: tautan SEGAR diperiksa server */}
+      <LoginVerifURLModal
+        isOpen={isLoginOtpModalOpen}
+        email={emailHint}
+        userName={tempName}
+        purpose="login"
+        onClose={() => {
+          setIsLoginOtpModalOpen(false);
+          loginFlow.current = null;
+        }}
+        onVerified={() => markStepDone("email")}
+      />
     </>
   );
 }

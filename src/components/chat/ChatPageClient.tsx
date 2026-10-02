@@ -28,6 +28,7 @@ import {
   Upload,
 } from "lucide-react";
 import { getPublicAccountAction } from "@/actions/publicAccountActions";
+import { getSessionAction } from "@/actions/authActions";
 import {
   getConversationsAction,
   getChatMessagesAction,
@@ -155,6 +156,13 @@ export function ChatPageClient() {
         }
         const parsed = JSON.parse(saved);
         if (!parsed || !parsed.name || !parsed.id) {
+          router.replace("/");
+          return;
+        }
+        // Sesi server wajib sah dan cocok dengan profil cache.
+        const sess: any = await getSessionAction();
+        if (!sess?.authenticated || sess.profile?.id !== parsed.id) {
+          localStorage.removeItem("tsg_user_profile");
           router.replace("/");
           return;
         }

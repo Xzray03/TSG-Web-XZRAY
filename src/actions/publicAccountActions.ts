@@ -2,6 +2,17 @@
 
 import { createClient } from "@supabase/supabase-js";
 import { sanitize, sanitizeUrl } from "@/lib/sanitize";
+import { getSession } from "@/lib/server/session";
+
+function cleanSocialMedia(v: any): Record<string, string> {
+  const out: Record<string, string> = {};
+  if (v && typeof v === "object" && !Array.isArray(v)) {
+    for (const k of Object.keys(v).slice(0, 12)) {
+      if (/^[a-z_]{2,20}$/i.test(k)) out[k] = sanitize(String(v[k] ?? ""), 200);
+    }
+  }
+  return out;
+}
 
 /**
  * Memeriksa apakah nickname termasuk nama/kata reserved yang dilarang (sistem/akun resmi TSG).
@@ -68,10 +79,14 @@ export async function checkNicknameAction(nickname: string, excludeAccountId?: s
   }
 }
 
-export async function getPublicAccountAction(realAccountId: string) {
-  if (!realAccountId) {
+export async function getPublicAccountAction(_ignored?: string) {
+  // Hanya data akun publik MILIK SENDIRI (dari sesi server). Parameter dari klien diabaikan
+  // sehingga ID akun tidak bisa dipakai untuk menarik data akun orang lain (IDOR).
+  const sess = await getSession();
+  if (!sess) {
     return { publicAccount: null };
   }
+  const realAccountId = sess.userId;
 
   const serverSupabase = getSupabaseClient();
 
@@ -113,7 +128,7 @@ export async function getPublicAccountAction(realAccountId: string) {
 }
 
 export async function savePublicAccountAction(body: {
-  realAccountId: string;
+  realAccountId?: string; // diabaikan: selalu dari sesi
   nickname: string;
   name: string;
   age?: number | string | null;
@@ -123,10 +138,19 @@ export async function savePublicAccountAction(body: {
   socialMedia?: any;
   website?: string | null;
 }) {
-  const { realAccountId, nickname, name, age, bio, avatarUrl, showTsgMember, socialMedia, website } = body;
+  const sess = await getSession();
+  if (!sess) {
+    return { error: "Sesi tidak valid atau telah berakhir. Silakan login kembali.", code: "UNAUTHENTICATED" };
+  }
+  const realAccountId = sess.userId;
+  const { nickname, name, age, bio, avatarUrl, showTsgMember, website } = body;
+  const socialMedia = cleanSocialMedia(body.socialMedia);
 
-  if (!realAccountId || !nickname || !name) {
-    return { error: "Real Account ID, nickname, dan nama wajib diisi." };
+  if (!nickname || !name || typeof nickname !== "string" || typeof name !== "string") {
+    return { error: "Nickname dan nama wajib diisi." };
+  }
+  if (age !== undefined && age !== null && age !== "" && !(Number.isInteger(Number(age)) && Number(age) >= 5 && Number(age) <= 120)) {
+    return { error: "Umur tidak valid." };
   }
 
   const cleanNickname = nickname.trim();

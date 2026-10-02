@@ -2,6 +2,9 @@
 
 import { createClient } from "@supabase/supabase-js";
 import { sanitize, sanitizeUrl } from "@/lib/sanitize";
+import { guarded, requireSession } from "@/lib/server/session";
+import { findAccountById, isCreator } from "@/lib/server/account";
+import { hit } from "@/lib/server/rateLimit";
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || "";
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || "";
@@ -105,10 +108,30 @@ export async function createSocialPostAction(body: {
   mediaType?: string;
   attachments?: any[];
 }) {
-  const { realAccountId, content, linkUrl, mediaUrl, mediaType, attachments } = body;
-  if (!realAccountId || !content || !content.trim()) {
+  const { content, linkUrl, mediaUrl, mediaType } = body;
+  if (!content || typeof content !== "string" || !content.trim()) {
     return { error: "Konten postingan wajib diisi." };
   }
+
+  return guarded(async () => {
+  // Identitas HANYA dari sesi server (parameter realAccountId dari klien diabaikan).
+  const session = await requireSession();
+  const realAccountId = session.userId;
+  if (!(await hit(`post:${realAccountId}`, { max: 30, windowSec: 3600, lockSec: 1800 }))) {
+    return { error: "Terlalu banyak postingan. Coba lagi nanti." };
+  }
+  const attachments = Array.isArray(body.attachments)
+    ? body.attachments
+        .slice(0, 10)
+        .map((a: any) => ({
+          url: sanitizeUrl(String(a?.url || "")),
+          name: sanitize(String(a?.name || ""), 200),
+          size: Number.isFinite(a?.size) ? Number(a.size) : 0,
+          mime: sanitize(String(a?.mime || ""), 100),
+          ext: sanitize(String(a?.ext || ""), 10),
+        }))
+        .filter((a: any) => a.url)
+    : [];
 
   const supabase = getSupabaseClient();
   try {
@@ -131,7 +154,7 @@ export async function createSocialPostAction(body: {
       link_url: sanitizeUrl(linkUrl || ''),
       media_url: sanitizeUrl(mediaUrl || attachments?.[0]?.url || ''),
       media_type: sanitize(mediaType || '', 50),
-      attachments: attachments || [],
+      attachments,
     });
 
     if (insertErr) {
@@ -142,9 +165,15 @@ export async function createSocialPostAction(body: {
   } catch (err: any) {
     return { error: err.message || "Gagal membuat postingan" };
   }
+  });
 }
 
 export async function uploadSocialFilesAction(formData: FormData) {
+  return guarded(async () => {
+  const session = await requireSession();
+  if (!(await hit(`upload:${session.userId}`, { max: 40, windowSec: 3600, lockSec: 1800 }))) {
+    return { error: "Terlalu banyak unggahan. Coba lagi nanti." };
+  }
   try {
     const files = formData.getAll("files") as File[];
     if (!files || files.length === 0) {
@@ -199,6 +228,7 @@ export async function uploadSocialFilesAction(formData: FormData) {
   } catch (err: any) {
     return { error: err.message || "Gagal mengunggah file" };
   }
+  });
 }
 
 export async function createSocialCommentAction(body: {
@@ -206,9 +236,16 @@ export async function createSocialCommentAction(body: {
   realAccountId: string;
   content: string;
 }) {
-  const { postId, realAccountId, content } = body;
-  if (!postId || !realAccountId || !content || !content.trim()) {
+  const { postId, content } = body;
+  if (!postId || typeof postId !== "string" || !content || typeof content !== "string" || !content.trim()) {
     return { error: "Komentar wajib diisi." };
+  }
+
+  return guarded(async () => {
+  const session = await requireSession();
+  const realAccountId = session.userId;
+  if (!(await hit(`comment:${realAccountId}`, { max: 60, windowSec: 3600, lockSec: 1800 }))) {
+    return { error: "Terlalu banyak komentar. Coba lagi nanti." };
   }
 
   const supabase = getSupabaseClient();
@@ -240,16 +277,21 @@ export async function createSocialCommentAction(body: {
   } catch (err: any) {
     return { error: err.message || "Gagal mengirim komentar" };
   }
+  });
 }
 
 export async function deleteSocialPostAction(body: {
   postId: string;
   realAccountId: string;
 }) {
-  const { postId, realAccountId } = body;
-  if (!postId || !realAccountId) {
+  const { postId } = body;
+  if (!postId || typeof postId !== "string") {
     return { error: "ID Postingan atau Akun tidak valid." };
   }
+
+  return guarded(async () => {
+  const session = await requireSession();
+  const realAccountId = session.userId;
 
   const supabase = getSupabaseClient();
   try {
@@ -265,23 +307,16 @@ export async function deleteSocialPostAction(body: {
 
     const post = postData[0];
 
-    const { data: userData, error: userErr } = await supabase
-      .from("user_accounts")
-      .select("*")
-      .eq("id", realAccountId)
-      .limit(1);
-
-    if (userErr || !userData || userData.length === 0) {
+    const userAcc = await findAccountById(realAccountId);
+    if (!userAcc) {
       return { error: "Akun pengguna tidak ditemukan." };
     }
 
-    const userAcc = userData[0];
     const isOwner = post.real_account_id === realAccountId;
-    const isCreator =
-      (userAcc.generation && userAcc.generation.trim().toLowerCase() === "creator") ||
-      (userAcc.name && userAcc.name.trim().toLowerCase() === "creator");
+    // Creator ditentukan dari data server (anggota TSG terverifikasi + generasi dari roster), bukan dari nama.
+    const canModerate = isCreator(userAcc);
 
-    if (!isOwner && !isCreator) {
+    if (!isOwner && !canModerate) {
       return { error: "Anda tidak memiliki izin untuk menghapus postingan ini." };
     }
 
@@ -298,4 +333,5 @@ export async function deleteSocialPostAction(body: {
   } catch (err: any) {
     return { error: err.message || "Gagal menghapus postingan." };
   }
+  });
 }

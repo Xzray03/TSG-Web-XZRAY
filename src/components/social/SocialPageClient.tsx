@@ -27,6 +27,7 @@ import {
   File,
 } from "lucide-react";
 import { getPublicAccountAction } from "@/actions/publicAccountActions";
+import { getSessionAction } from "@/actions/authActions";
 import {
   getSocialPostsAction,
   createSocialPostAction,
@@ -102,6 +103,12 @@ export function SocialPageClient({ initialPosts }: SocialPageClientProps) {
         }
         const parsed = JSON.parse(saved);
         if (!parsed || !parsed.name || !parsed.id) {
+          router.replace("/");
+          return;
+        }
+        const sess: any = await getSessionAction();
+        if (!sess?.authenticated || sess.profile?.id !== parsed.id) {
+          localStorage.removeItem("tsg_user_profile");
           router.replace("/");
           return;
         }

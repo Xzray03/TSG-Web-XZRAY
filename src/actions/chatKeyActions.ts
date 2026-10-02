@@ -1,6 +1,7 @@
 "use server";
 
 import { createClient } from "@supabase/supabase-js";
+import { getSession } from "@/lib/server/session";
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || "";
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || "";
@@ -48,8 +49,11 @@ function toRecord(r: KeyRow) {
 }
 
 /** Ambil record kunci milik sendiri (termasuk cadangan terenkripsi kata sandi). */
-export async function getChatKeyAction(userId: string) {
-  if (!ID_RE.test(userId || "")) return { error: "ID tidak valid." };
+export async function getChatKeyAction(_ignored?: string) {
+  // Hanya pemilik (sesi) yang boleh mengambil cadangan kunci terenkripsi miliknya.
+  const sess = await getSession();
+  if (!sess) return { error: "Sesi tidak valid atau telah berakhir. Silakan login kembali.", code: "UNAUTHENTICATED" };
+  const userId = sess.userId;
   try {
     const { data, error } = await getSupabaseClient()
       .from("chat_keys")
@@ -68,6 +72,8 @@ export async function getChatKeyAction(userId: string) {
 
 /** Ambil KUNCI PUBLIK beberapa pengguna (tanpa cadangan privat). */
 export async function getPublicKeysAction(userIds: string[]) {
+  const sess = await getSession();
+  if (!sess) return { keys: {}, error: "Sesi tidak valid.", code: "UNAUTHENTICATED" };
   if (!Array.isArray(userIds)) return { keys: {} };
   const ids = Array.from(new Set(userIds.filter((i) => typeof i === "string" && ID_RE.test(i)))).slice(0, 60);
   if (ids.length === 0) return { keys: {} };
@@ -92,7 +98,7 @@ export async function getPublicKeysAction(userIds: string[]) {
  * replace=true dipakai untuk reset kunci; lawan bicara akan melihat peringatan "kunci berubah".
  */
 export async function publishChatKeyAction(body: {
-  userId: string;
+  userId?: string; // diabaikan: selalu dari sesi
   record: {
     publicKey: any;
     wrappedPrivateKey: string;
@@ -102,8 +108,10 @@ export async function publishChatKeyAction(body: {
   };
   replace?: boolean;
 }) {
-  const { userId, record, replace } = body || ({} as any);
-  if (!ID_RE.test(userId || "")) return { error: "ID tidak valid." };
+  const sess = await getSession();
+  if (!sess) return { error: "Sesi tidak valid atau telah berakhir. Silakan login kembali.", code: "UNAUTHENTICATED" };
+  const userId = sess.userId;
+  const { record, replace } = body || ({} as any);
   if (
     !record ||
     !validJwk(record.publicKey) ||

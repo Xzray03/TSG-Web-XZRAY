@@ -3,7 +3,8 @@
 import React, { useState, useRef, useEffect } from "react";
 import { Lock, KeyRound, Check, X, AlertCircle, Loader2, ShieldCheck, Eye, EyeOff } from "lucide-react";
 import { CanvasCaptcha, CanvasCaptchaRef } from "@/components/auth/CanvasCaptcha";
-import { processAuthAction } from "@/actions/authActions";
+import { loginPasswordAction, registerAccountAction } from "@/actions/authActions";
+import { getOrCreateDeviceKey } from "@/lib/deviceKeyManager";
 
 interface PasswordAuthModalProps {
   isOpen: boolean;
@@ -90,45 +91,29 @@ export default function PasswordAuthModal({
     setIsLoading(true);
 
     try {
-      const data: any = await processAuthAction({
-        action: mode === "register" ? "register_password" : "login_password",
-        name: userName,
-        password: password,
-        isTsgMember: isTsgMember,
-        tsgInfo: tsgInfo,
-      });
-
-      if (!data.success) {
-        throw new Error(data.error || "Gagal memproses autentikasi password.");
+      if (mode === "register") {
+        const reg: any = await registerAccountAction({
+          name: userName,
+          password,
+          claimTsgMember: isTsgMember,
+          verifDeviceId: isTsgMember ? getOrCreateDeviceKey() : undefined,
+        });
+        if (!reg?.success) {
+          throw new Error(reg?.error || "Gagal memproses pendaftaran.");
+        }
+        // Server membuat akun dan memulai proses login; orkestrator menyelesaikannya (bukti perangkat).
+        onSuccess({ step: "registered", loginId: reg.loginId, nonce: reg.nonce, required: reg.required });
+        onClose();
+        return;
       }
 
-      // Success
-      const existingSavedProfile = localStorage.getItem("tsg_user_profile");
-      let existingCustomPhoto = "";
-      if (existingSavedProfile) {
-        try {
-          const parsed = JSON.parse(existingSavedProfile);
-          if (parsed.iconDataUrl) {
-            existingCustomPhoto = parsed.iconDataUrl;
-          }
-        } catch (e) {}
+      const data: any = await loginPasswordAction(password);
+      if (!data?.success) {
+        throw new Error(data?.error || "Gagal memproses autentikasi password.");
       }
-
-      const profile = {
-        id: accountData?.id || undefined,
-        name: userName,
-        isTsgMember: typeof accountData?.isTsgMember === "boolean" ? accountData.isTsgMember : isTsgMember,
-        generation: accountData?.generation || tsgInfo?.categoryName || "",
-        email: accountData?.email || tsgInfo?.email || "",
-        authMethod: "password",
-        iconDataUrl: accountData?.photo || tsgInfo?.photo || existingCustomPhoto || "",
-        createdAt: accountData?.createdAt || undefined,
-      };
-
-      localStorage.setItem("tsg_user_profile", JSON.stringify(profile));
-
-      onSuccess(profile);
+      onSuccess({ step: "password" });
       onClose();
+      return;
     } catch (err: any) {
       setErrorMsg(err.message || "Terjadi kesalahan pada server.");
       captchaRef.current?.refresh();

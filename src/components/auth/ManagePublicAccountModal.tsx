@@ -15,7 +15,7 @@ import { FaUser } from "react-icons/fa";
 import { LogoModal } from "@/components/layout/LogoModal";
 import { FaLinkedin, FaGithub, FaYoutube, FaTiktok, FaInstagram, FaFacebook, FaWhatsapp, FaLine } from "react-icons/fa";
 import { useScrollLock } from "@/hooks/useScrollLock";
-import { checkAccountAction } from "@/actions/authActions";
+import { getMyAccountAction } from "@/actions/authActions";
 import {
   checkNicknameAction,
   getPublicAccountAction,
@@ -82,7 +82,7 @@ export default function ManagePublicAccountModal({
         let currentId = realAccountId;
         if (!currentId) {
           try {
-            const checkData: any = await checkAccountAction(realAccountName.trim());
+            const checkData: any = await getMyAccountAction();
             if (checkData && checkData.id) {
               currentId = checkData.id;
               setResolvedId(checkData.id);

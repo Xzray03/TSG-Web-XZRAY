@@ -3,12 +3,19 @@
 import React, { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Mail, Check, X, AlertCircle, Loader2, Send, ExternalLink } from "lucide-react";
-import { processAuthAction, checkEmailConfirmedAction } from "@/actions/authActions";
+import {
+  sendLoginEmailAction,
+  checkLoginEmailAction,
+  sendEmailVerifyAction,
+  checkEmailVerifyAction,
+} from "@/actions/authActions";
 
 interface LoginConfirmationModalProps {
   isOpen: boolean;
   email: string;
   userName: string;
+  /** "login": langkah email pada proses login; "verify": verifikasi email dari pengaturan akun (butuh sesi). */
+  purpose?: "login" | "verify";
   onClose: () => void;
   onVerified: () => void;
 }
@@ -38,9 +45,12 @@ export function LoginVerifURLModal({
   isOpen,
   email,
   userName,
+  purpose = "login",
   onClose,
   onVerified,
 }: LoginConfirmationModalProps) {
+  const sendFn = purpose === "verify" ? sendEmailVerifyAction : sendLoginEmailAction;
+  const checkFn = purpose === "verify" ? checkEmailVerifyAction : checkLoginEmailAction;
   const [isSending, setIsSending] = useState(false);
   const [isChecking, setIsChecking] = useState(false);
   const [errorMsg, setErrorMsg] = useState("");
@@ -54,11 +64,7 @@ export function LoginVerifURLModal({
     setSuccessMsg("");
 
     try {
-      const data: any = await processAuthAction({
-        action: "send_confirmation",
-        name: userName,
-        targetEmail: email,
-      });
+      const data: any = await sendFn();
 
       if (!data.success) {
         throw new Error(data.error || "Gagal mengirimkan tautan konfirmasi (ConfirmationURL) ke email.");
@@ -87,7 +93,7 @@ export function LoginVerifURLModal({
 
     const interval = setInterval(async () => {
       try {
-        const result: any = await checkEmailConfirmedAction(email);
+        const result: any = await checkFn();
         if (result.confirmed) {
           onVerified();
         }
@@ -113,7 +119,7 @@ export function LoginVerifURLModal({
     setIsChecking(true);
     setErrorMsg("");
     try {
-      const result: any = await checkEmailConfirmedAction(email);
+      const result: any = await checkFn();
       if (result.confirmed) {
         onVerified();
       } else {

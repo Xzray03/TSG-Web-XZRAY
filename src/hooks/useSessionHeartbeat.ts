@@ -1,27 +1,36 @@
 "use client";
 
-import React, { useEffect } from "react";
-import { getOrCreateDeviceKey } from "@/lib/deviceKeyManager";
+import { useEffect, useRef } from "react";
 import { sessionHeartbeatAction } from "@/actions/sessionActions";
 
-export function useSessionHeartbeat(userId: string | null, onPendingLogin?: (requestData: any) => void) {
+/**
+ * Denyut perangkat setiap 30 detik selama pengguna login (sesi dicek server).
+ * Perangkat utama menerima daftar permintaan login perangkat baru lewat onPendingLogin.
+ */
+export function useSessionHeartbeat(isLoggedIn: boolean, onPendingLogin?: (requestData: any) => void) {
+  const cb = useRef(onPendingLogin);
+  cb.current = onPendingLogin;
+
   useEffect(() => {
-    if (!userId) return;
+    if (!isLoggedIn) return;
+    let stopped = false;
 
-    const deviceKey = getOrCreateDeviceKey();
-
-    // Kirim heartbeat setiap 10 menit (atau 30 detik untuk demo responsif)
-    const interval = setInterval(async () => {
+    const beat = async () => {
       try {
-        const data: any = await sessionHeartbeatAction(userId, deviceKey);
-        if (data.pendingRequest && onPendingLogin) {
-          onPendingLogin(data.pendingRequest);
-        }
+        const data: any = await sessionHeartbeatAction();
+        if (stopped || !data || data.error) return;
+        const first = Array.isArray(data.pendingRequests) ? data.pendingRequests[0] : null;
+        if (first && cb.current) cb.current({ ...first, id: first.deviceId });
       } catch (e) {
         console.error("Heartbeat error:", e);
       }
-    }, 30000); // 30 detik pengecekan ping/heartbeat aktif
+    };
 
-    return () => clearInterval(interval);
-  }, [userId, onPendingLogin]);
+    beat();
+    const interval = setInterval(beat, 30000);
+    return () => {
+      stopped = true;
+      clearInterval(interval);
+    };
+  }, [isLoggedIn]);
 }

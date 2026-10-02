@@ -23,7 +23,15 @@ import {
   Sliders,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
-import { checkAccountAction, processAuthAction, checkEmailConfirmedAction } from "@/actions/authActions";
+import {
+  getMyAccountAction,
+  changePasswordAction,
+  addPasswordAction,
+  setEmailAction,
+  updateLoginPreferencesAction,
+} from "@/actions/authActions";
+import { getStepUpProof } from "@/lib/stepUp";
+import { LoginVerifURLModal } from "@/components/auth/LoginVerifURLModal";
 
 interface ManageAccountModalProps {
   isOpen: boolean;
@@ -32,7 +40,7 @@ interface ManageAccountModalProps {
   onSwitchAccount: () => void;
   onLogout: () => void;
   onRefreshProfile: () => void;
-  onAddFaceTrigger: () => void;
+  onAddFaceTrigger: (password: string) => void;
 }
 
 function maskEmail(email: string): string {
@@ -68,6 +76,9 @@ export default function ManageAccountModal({
   const [hasPassword, setHasPassword] = useState(false);
   const [hasFace, setHasFace] = useState(false);
   const [registeredEmail, setRegisteredEmail] = useState("");
+  const [emailVerified, setEmailVerified] = useState(false);
+  const [isEmailVerifyOpen, setIsEmailVerifyOpen] = useState(false);
+  const [facePassword, setFacePassword] = useState("");
   const [isLoadingStatus, setIsLoadingLoadingStatus] = useState(false);
 
   // Login preference toggles
@@ -80,7 +91,7 @@ export default function ManageAccountModal({
 
   // Form states
   const [activeForm, setActiveForm] = useState<
-    "none" | "add_password" | "reset_password" | "add_email" | "change_email" | "login_prefs"
+    "none" | "add_password" | "reset_password" | "add_email" | "change_email" | "login_prefs" | "add_face"
   >("none");
   const [oldPassword, setOldPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
@@ -108,11 +119,12 @@ export default function ManageAccountModal({
     if (!userName.trim()) return;
     setIsLoadingLoadingStatus(true);
     try {
-      const data: any = await checkAccountAction(userName.trim());
-      if (data && !data.error && data.exists) {
+      const data: any = await getMyAccountAction();
+      if (data && !data.error) {
         setHasPassword(!!data.hasPassword);
         setHasFace(!!data.hasFace);
         setRegisteredEmail(data.email || "");
+        setEmailVerified(!!data.emailVerified);
         if (data.loginPreferences) {
           setLoginPrefPassword(data.loginPreferences.password ?? true);
           setLoginPrefFace(data.loginPreferences.face ?? true);
@@ -170,24 +182,6 @@ export default function ManageAccountModal({
     return () => clearTimeout(timer);
   }, [resendCountdown]);
 
-  // Listen for ConfirmationURL magic link authentication automatically during password reset
-  useEffect(() => {
-    if (!isConfirmationModalOpen) return;
-
-    const interval = setInterval(async () => {
-      try {
-        const result: any = await checkEmailConfirmedAction(registeredEmail);
-        if (result.confirmed) {
-          await finalizePasswordResetAfterConfirmation();
-        }
-      } catch (e) {}
-    }, 2500);
-
-    return () => {
-      clearInterval(interval);
-    };
-  }, [isConfirmationModalOpen, newPassword]);
-
   if (!isOpen) return null;
 
   const handleAddPassword = async (e: React.FormEvent) => {
@@ -202,14 +196,10 @@ export default function ManageAccountModal({
 
     setIsSubmitting(true);
     try {
-      const data: any = await processAuthAction({
-        action: "add_password",
-        name: userName,
-        newPassword,
-      });
-
-      if (!data.success) {
-        throw new Error(data.error || "Gagal menambahkan password.");
+      const proof = await getStepUpProof("add_password");
+      const data: any = await addPasswordAction({ newPassword, proof });
+      if (!data?.success) {
+        throw new Error(data?.error || "Gagal menambahkan password.");
       }
 
       setSuccessMsg("Password berhasil ditambahkan ke akun Anda!");
@@ -225,74 +215,6 @@ export default function ManageAccountModal({
     }
   };
 
-  const sendConfirmationLinkToEmail = async (emailAddr: string) => {
-    setIsSendingConfirmation(true);
-    setConfErrorMsg("");
-    setConfSuccessMsg("");
-
-    try {
-      const data: any = await processAuthAction({
-        action: "send_confirmation",
-        name: userName,
-        targetEmail: emailAddr,
-      });
-
-      if (!data.success) {
-        throw new Error(data.error || "Gagal mengirimkan tautan konfirmasi.");
-      }
-
-      setConfSuccessMsg(`Tautan konfirmasi (ConfirmationURL) berhasil dikirim ke ${maskEmail(emailAddr)}`);
-      setResendCountdown(60);
-    } catch (err: any) {
-      setConfErrorMsg(err.message || "Gagal mengirim tautan konfirmasi.");
-    } finally {
-      setIsSendingConfirmation(false);
-    }
-  };
-
-  const finalizePasswordResetAfterConfirmation = async () => {
-    try {
-      const dataReset: any = await processAuthAction({
-        action: "reset_password",
-        name: userName,
-        oldPassword,
-        newPassword,
-        isConfirmationVerified: true,
-      });
-
-      if (!dataReset.success) {
-        throw new Error(dataReset.error || "Gagal memperbarui password.");
-      }
-
-      setIsConfirmationModalOpen(false);
-      setSuccessMsg("Verifikasi Tautan Konfirmasi Berhasil! Password baru berhasil diperbarui.");
-      setActiveForm("none");
-      setOldPassword("");
-      setNewPassword("");
-      setConfirmPassword("");
-      onRefreshProfile();
-    } catch (err: any) {
-      setConfErrorMsg(err.message || "Gagal menyelesaikan pembaruan password.");
-    }
-  };
-
-  const handleCheckManualConfirmation = async () => {
-    setIsCheckingSession(true);
-    setConfErrorMsg("");
-    try {
-      const result: any = await checkEmailConfirmedAction(registeredEmail);
-      if (result.confirmed) {
-        await finalizePasswordResetAfterConfirmation();
-      } else {
-        setConfErrorMsg("Tautan konfirmasi belum diklik atau sesi belum aktif.");
-      }
-    } catch (e) {
-      setConfErrorMsg("Gagal memeriksa status konfirmasi.");
-    } finally {
-      setIsCheckingSession(false);
-    }
-  };
-
   const handleResetPassword = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMsg("");
@@ -305,25 +227,10 @@ export default function ManageAccountModal({
 
     setIsSubmitting(true);
     try {
-      const data: any = await processAuthAction({
-        action: "reset_password",
-        name: userName,
-        oldPassword,
-        newPassword,
-        isConfirmationVerified: false,
-      });
-
-      if (data.error) {
-        throw new Error(data.error || "Gagal memproses ganti password.");
-      }
-
-      if (data.requireConfirmation) {
-        setIsConfirmationModalOpen(true);
-        setConfErrorMsg("");
-        setConfSuccessMsg("");
-        sendConfirmationLinkToEmail(data.email || registeredEmail);
-        setIsSubmitting(false);
-        return;
+      const proof = await getStepUpProof("change_password");
+      const data: any = await changePasswordAction({ oldPassword, newPassword, proof });
+      if (!data?.success) {
+        throw new Error(data?.error || "Gagal memproses ganti password.");
       }
 
       setSuccessMsg("Password berhasil diperbarui!");
@@ -339,70 +246,31 @@ export default function ManageAccountModal({
     }
   };
 
-  const handleAddEmail = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setErrorMsg("");
-    setSuccessMsg("");
-
+  const submitEmail = async (successText: (email: string) => string, missingPassMsg: string) => {
     if (!newEmailInput.trim() || !newEmailInput.includes("@")) {
       setErrorMsg("Masukkan alamat email yang valid.");
       return;
     }
-
-    setIsSubmitting(true);
-    try {
-      const data: any = await processAuthAction({
-        action: "add_email",
-        name: userName,
-        email: newEmailInput,
-      });
-
-      if (!data.success) {
-        throw new Error(data.error || "Gagal menambahkan email.");
-      }
-
-      setSuccessMsg(`Email ${newEmailInput} berhasil terhubung dengan akun!`);
-      setRegisteredEmail(newEmailInput.trim().toLowerCase());
-      setActiveForm("none");
-      setNewEmailInput("");
-      onRefreshProfile();
-    } catch (err: any) {
-      setErrorMsg(err.message || "Terjadi kesalahan.");
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
-
-  const handleChangeEmail = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setErrorMsg("");
-    setSuccessMsg("");
-
-    if (!newEmailInput.trim() || !newEmailInput.includes("@")) {
-      setErrorMsg("Masukkan alamat email baru yang valid.");
-      return;
-    }
-
     if (hasPassword && !currentPassForEmail) {
-      setErrorMsg("Password saat ini wajib diisi untuk verifikasi ganti email.");
+      setErrorMsg(missingPassMsg);
       return;
     }
 
     setIsSubmitting(true);
     try {
-      const data: any = await processAuthAction({
-        action: "change_email",
-        name: userName,
-        password: currentPassForEmail,
+      const proof = await getStepUpProof("set_email");
+      const data: any = await setEmailAction({
         email: newEmailInput,
+        password: currentPassForEmail || undefined,
+        proof,
       });
-
-      if (!data.success) {
-        throw new Error(data.error || "Gagal memperbarui email.");
+      if (!data?.success) {
+        throw new Error(data?.error || "Gagal memperbarui email.");
       }
 
-      setSuccessMsg(`Email akun berhasil diperbarui menjadi ${newEmailInput}!`);
+      setSuccessMsg(successText(newEmailInput));
       setRegisteredEmail(newEmailInput.trim().toLowerCase());
+      setEmailVerified(false);
       setActiveForm("none");
       setNewEmailInput("");
       setCurrentPassForEmail("");
@@ -412,6 +280,39 @@ export default function ManageAccountModal({
     } finally {
       setIsSubmitting(false);
     }
+  };
+
+  const handleAddEmail = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setErrorMsg("");
+    setSuccessMsg("");
+    await submitEmail(
+      (em) => `Email ${em} tersimpan. Verifikasi email agar bisa dipakai untuk login.`,
+      "Password saat ini wajib diisi untuk menambahkan email."
+    );
+  };
+
+  const handleChangeEmail = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setErrorMsg("");
+    setSuccessMsg("");
+    await submitEmail(
+      (em) => `Email akun diperbarui menjadi ${em}. Verifikasi email agar bisa dipakai untuk login.`,
+      "Password saat ini wajib diisi untuk verifikasi ganti email."
+    );
+  };
+
+  const handleAddFaceSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    setErrorMsg("");
+    if (!facePassword) {
+      setErrorMsg("Masukkan password saat ini untuk melanjutkan.");
+      return;
+    }
+    const pw = facePassword;
+    setFacePassword("");
+    onClose();
+    onAddFaceTrigger(pw);
   };
 
   const handleSaveLoginPreferences = async (e: React.FormEvent) => {
@@ -428,18 +329,14 @@ export default function ManageAccountModal({
 
     setIsSavingPrefs(true);
     try {
-      const data: any = await processAuthAction({
-        action: "update_login_preferences",
-        name: userName,
-        preferences: {
-          password: loginPrefPassword,
-          face: loginPrefFace,
-          email: loginPrefEmail,
-        },
+      const data: any = await updateLoginPreferencesAction({
+        password: loginPrefPassword,
+        face: loginPrefFace,
+        email: loginPrefEmail,
       });
 
-      if (!data.success) {
-        throw new Error(data.error || "Gagal menyimpan preferensi metode login.");
+      if (!data?.success) {
+        throw new Error(data?.error || "Gagal menyimpan preferensi metode login.");
       }
 
       setPrefsSuccessMsg("Preferensi metode login berhasil diperbarui!");
@@ -546,7 +443,7 @@ export default function ManageAccountModal({
                   <p className="text-xs font-bold">Email</p>
                 </div>
                 <p className="text-[10px] opacity-90 truncate font-mono" title={registeredEmail ? registeredEmail : undefined}>
-                  {registeredEmail ? maskEmail(registeredEmail) : "Belum Ada"}
+                  {registeredEmail ? `${maskEmail(registeredEmail)}${emailVerified ? "" : " (belum diverifikasi)"}` : "Belum Ada"}
                 </p>
               </div>
 
@@ -701,8 +598,8 @@ export default function ManageAccountModal({
                     type="button"
                     disabled={isLoadingStatus}
                     onClick={() => {
-                      onClose();
-                      onAddFaceTrigger();
+                      setActiveForm("add_face");
+                      setErrorMsg("");
                     }}
                     className="py-2.5 px-3 rounded-xl bg-emerald-500/20 hover:bg-emerald-500/30 border border-emerald-500/30 text-emerald-300 text-xs font-semibold flex items-center justify-center gap-1.5 transition cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed disabled:pointer-events-none"
                   >
@@ -743,6 +640,45 @@ export default function ManageAccountModal({
               </div>
             </div>
 
+            {registeredEmail && !emailVerified && (
+              <button
+                type="button"
+                onClick={() => setIsEmailVerifyOpen(true)}
+                className="w-full py-2.5 rounded-xl bg-blue-500/20 hover:bg-blue-500/30 border border-blue-500/30 text-blue-300 text-xs font-semibold cursor-pointer"
+              >
+                Verifikasi Email
+              </button>
+            )}
+
+            {/* FORM: TAMBAH WAJAH (sekali per akun, tidak bisa diganti/dihapus) */}
+            {activeForm === "add_face" && (
+              <form onSubmit={handleAddFaceSubmit} className="p-4 rounded-xl bg-slate-800/90 border border-emerald-500/40 space-y-3 pt-3">
+                <div className="flex justify-between items-center pb-1">
+                  <span className="text-xs font-bold text-emerald-300 flex items-center gap-1.5">
+                    <Camera className="w-3.5 h-3.5" /> Tambah Verifikasi Wajah
+                  </span>
+                  <button type="button" onClick={() => setActiveForm("none")} className="text-white/50 hover:text-white text-xs cursor-pointer">
+                    Batal
+                  </button>
+                </div>
+                <p className="text-[11px] text-amber-300 leading-relaxed">
+                  Wajah hanya dapat didaftarkan SEKALI dan tidak dapat diganti atau dihapus.
+                </p>
+                <input
+                  type="password"
+                  required
+                  value={facePassword}
+                  onChange={(e) => setFacePassword(e.target.value)}
+                  placeholder="Password saat ini"
+                  autoComplete="current-password"
+                  className="w-full rounded-xl border border-white/15 bg-slate-900 px-3.5 py-2 text-xs text-white placeholder-white/30 focus:border-emerald-400 focus:outline-none"
+                />
+                <button type="submit" className="w-full py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 font-bold text-xs text-white cursor-pointer">
+                  Lanjutkan ke Pemindaian Wajah
+                </button>
+              </form>
+            )}
+
             {/* FORM: TAMBAH EMAIL */}
             {activeForm === "add_email" && (
               <form onSubmit={handleAddEmail} className="p-4 rounded-xl bg-slate-800/90 border border-purple-500/40 space-y-3 pt-3">
@@ -758,6 +694,22 @@ export default function ManageAccountModal({
                     Batal
                   </button>
                 </div>
+
+                {hasPassword && (
+                  <div>
+                    <label className="block text-[11px] font-medium text-white/70 mb-1">
+                      Verifikasi Password Saat Ini
+                    </label>
+                    <input
+                      type="password"
+                      required
+                      value={currentPassForEmail}
+                      onChange={(e) => setCurrentPassForEmail(e.target.value)}
+                      placeholder="Masukkan password akun Anda"
+                      className="w-full rounded-xl border border-white/15 bg-slate-900 px-3.5 py-2 text-xs text-white placeholder-white/30 focus:border-purple-400 focus:outline-none"
+                    />
+                  </div>
+                )}
 
                 <div>
                   <label className="block text-[11px] font-medium text-white/70 mb-1">
@@ -1051,88 +1003,20 @@ export default function ManageAccountModal({
         </div>
       </div>
 
-      {/* POP-UP MODAL KONFIRMASI TAUTAN EMAIL (ConfirmationURL) */}
-      <AnimatePresence>
-        {isConfirmationModalOpen && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 z-[9999999] flex items-center justify-center bg-black/85 backdrop-blur-md p-4 overflow-y-auto"
-          >
-            <div className="relative my-auto w-full max-w-md rounded-3xl bg-slate-900 border border-purple-500/30 p-6 text-white shadow-2xl space-y-4">
-              <div className="flex items-center gap-3">
-                <div className="p-3 rounded-2xl bg-purple-500/20 text-purple-400 border border-purple-500/30 shrink-0">
-                  <Mail className="w-6 h-6" />
-                </div>
-                <div>
-                  <h4 className="text-base font-bold text-white">Verifikasi Tautan Email</h4>
-                  <p className="text-xs text-white/60">Tautan konfirmasi dikirim untuk keamanan ganti password.</p>
-                </div>
-              </div>
-
-              {confSuccessMsg && (
-                <div className="flex items-center gap-2 text-purple-300 text-xs bg-purple-950/60 p-3 rounded-xl border border-purple-500/30">
-                  <Check className="w-4 h-4 shrink-0" />
-                  <span>{confSuccessMsg}</span>
-                </div>
-              )}
-
-              {confErrorMsg && (
-                <div className="flex items-center gap-2 text-rose-400 text-xs bg-rose-950/60 p-3 rounded-xl border border-rose-900/50">
-                  <AlertCircle className="w-4 h-4 shrink-0" />
-                  <span>{confErrorMsg}</span>
-                </div>
-              )}
-
-              <div className="bg-white/5 p-3.5 rounded-xl border border-white/10 text-xs text-white/80 space-y-2">
-                <p>Silakan buka email Anda dan klik tautan konfirmasi yang dikirimkan oleh sistem untuk mengesahkan reset password.</p>
-                <p className="text-[11px] text-white/50 italic">Halaman ini akan otomatis mendeteksi verifikasi Anda setelah tautan diklik.</p>
-              </div>
-
-              <div className="space-y-2 pt-2">
-                <button
-                  type="button"
-                  disabled={isCheckingSession}
-                  onClick={handleCheckManualConfirmation}
-                  className="w-full py-3 rounded-xl bg-purple-600 hover:bg-purple-500 font-bold text-xs text-white flex items-center justify-center gap-2 transition cursor-pointer disabled:opacity-50"
-                >
-                  {isCheckingSession ? (
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                  ) : (
-                    <>
-                      <ExternalLink className="w-4 h-4" />
-                      <span>Saya Sudah Klik Tautan, Lanjutkan</span>
-                    </>
-                  )}
-                </button>
-
-                <div className="flex items-center justify-between pt-1">
-                  <button
-                    type="button"
-                    disabled={resendCountdown > 0 || isSendingConfirmation}
-                    onClick={() => sendConfirmationLinkToEmail(registeredEmail)}
-                    className="text-xs text-purple-400 hover:text-purple-300 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
-                  >
-                    {resendCountdown > 0 ? `Kirim Ulang Tautan (${resendCountdown}s)` : "Kirim Ulang Tautan"}
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setIsConfirmationModalOpen(false);
-                      setActiveForm("none");
-                    }}
-                    className="text-xs text-white/60 hover:text-white cursor-pointer"
-                  >
-                    Batal
-                  </button>
-                </div>
-              </div>
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+      {/* Verifikasi email dari pengaturan akun (tautan SEGAR, diperiksa server) */}
+      <LoginVerifURLModal
+        isOpen={isEmailVerifyOpen}
+        email={registeredEmail}
+        userName={userName}
+        purpose="verify"
+        onClose={() => setIsEmailVerifyOpen(false)}
+        onVerified={() => {
+          setIsEmailVerifyOpen(false);
+          setEmailVerified(true);
+          setSuccessMsg("Email berhasil diverifikasi.");
+          onRefreshProfile();
+        }}
+      />
     </>
   );
 }
