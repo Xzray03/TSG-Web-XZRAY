@@ -26,6 +26,7 @@ import DeleteAccountModal from "@/components/auth/DeleteAccountModal";
 import DeviceApprovalModal from "@/components/auth/DeviceApprovalModal";
 import ManageAccountModal from "@/components/auth/ManageAccountModal";
 import ManagePublicAccountModal from "@/components/auth/ManagePublicAccountModal";
+import TotpPromptModal from "@/components/auth/TotpPromptModal";
 import { PublicProfilePreviewModal } from "@/components/auth/PublicProfilePreviewModal";
 import { LoginVerifURLModal } from "@/components/auth/LoginVerifURLModal";
 import { LogoModal } from "@/components/layout/LogoModal";
@@ -38,6 +39,7 @@ import {
   checkAccountAction,
   beginLoginAction,
   finishLoginAction,
+  loginTotpAction,
   pollDeviceApprovalAction,
   getSessionAction,
   getMyAccountAction,
@@ -108,6 +110,9 @@ export function UserProfileBadge() {
   const [isTsgVerifOpen, setIsTsgVerifOpen] = useState(false);
 
   const [isLoginOtpModalOpen, setIsLoginOtpModalOpen] = useState(false);
+  const [isLoginTotpOpen, setIsLoginTotpOpen] = useState(false);
+  const [totpPromptError, setTotpPromptError] = useState("");
+  const [isTotpSubmitting, setIsTotpSubmitting] = useState(false);
   const [pendingLoginProfile, setPendingLoginProfile] =
     useState<UserProfile | null>(null);
 
@@ -119,8 +124,8 @@ export function UserProfileBadge() {
   const [isDeviceWaitingOpen, setIsDeviceWaitingOpen] = useState(false);
   const [emailHint, setEmailHint] = useState("");
   const loginFlow = useRef<{
-    required: { password: boolean; face: boolean; email: boolean };
-    done: { password?: boolean; face?: boolean; email?: boolean };
+    required: { password: boolean; face: boolean; email: boolean; totp: boolean };
+    done: { password?: boolean; face?: boolean; email?: boolean; totp?: boolean };
     loginId: string;
     nonce: string;
   } | null>(null);
@@ -403,6 +408,7 @@ export function UserProfileBadge() {
     setIsPasswordModalOpen(false);
     setIsFaceModalOpen(false);
     setIsLoginOtpModalOpen(false);
+    setIsLoginTotpOpen(false);
 
     if (flow.required.password && !flow.done.password) {
       setIsAddFaceFlow(false);
@@ -412,16 +418,38 @@ export function UserProfileBadge() {
       setIsFaceModalOpen(true);
     } else if (flow.required.email && !flow.done.email) {
       setIsLoginOtpModalOpen(true);
+    } else if (flow.required.totp && !flow.done.totp) {
+      // Gate TOTP terakhir sebelum finishLogin
+      setTotpPromptError("");
+      setIsLoginTotpOpen(true);
     } else {
       void finishLogin();
     }
   };
 
-  const markStepDone = (step: "password" | "face" | "email") => {
+  const markStepDone = (step: "password" | "face" | "email" | "totp") => {
     if (loginFlow.current) {
       loginFlow.current.done = { ...loginFlow.current.done, [step]: true };
     }
     proceedLogin();
+  };
+
+  const handleLoginTotpSubmit = async (code: string) => {
+    setIsTotpSubmitting(true);
+    setTotpPromptError("");
+    try {
+      const res: any = await loginTotpAction({ code });
+      if (res?.error) {
+        setTotpPromptError(res.error || "Kode tidak valid.");
+        return;
+      }
+      setIsLoginTotpOpen(false);
+      markStepDone("totp");
+    } catch (err: any) {
+      setTotpPromptError(err.message || "Terjadi kesalahan.");
+    } finally {
+      setIsTotpSubmitting(false);
+    }
   };
 
   const completeLogin = async (serverProfile: any) => {
@@ -1013,6 +1041,20 @@ export function UserProfileBadge() {
         accountData={accountDataState}
         onClose={() => setIsPasswordModalOpen(false)}
         onSuccess={handlePasswordVerified}
+      />
+
+      {/* Modal Prompt TOTP untuk Login */}
+      <TotpPromptModal
+        isOpen={isLoginTotpOpen}
+        title="Verifikasi 2FA Diperlukan"
+        subtitle="Akun Anda dilindungi 2FA. Masukkan kode 6 digit atau recovery code."
+        isLoading={isTotpSubmitting}
+        error={totpPromptError}
+        onSubmit={handleLoginTotpSubmit}
+        onClose={() => {
+          setIsLoginTotpOpen(false);
+          failLogin("Proses login dibatalkan pada verifikasi 2FA.");
+        }}
       />
 
       {/* Modal Kelola Akun */}

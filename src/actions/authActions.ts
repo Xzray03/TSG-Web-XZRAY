@@ -1,5 +1,6 @@
 "use server";
 
+import crypto from "crypto";
 import { db } from "@/lib/server/db";
 import { AuthError, GENERIC_AUTH_ERROR, randomToken, tokenHash } from "@/lib/server/secrets";
 import { hashPassword, verifyPassword, dummyVerify, passwordPolicyError } from "@/lib/server/password";
@@ -8,6 +9,7 @@ import {
   LOGIN_POLICY,
   EMAIL_POLICY,
   POLL_POLICY,
+  TOTP_POLICY,
   audit,
   clearFailures,
   clientIpHash,
@@ -55,6 +57,20 @@ import {
   matchFace,
   validateVectors,
 } from "@/lib/server/faceTemplate";
+import {
+  base32Encode,
+  consumeRecoveryCode,
+  decryptTotpSecret,
+  encryptTotpSecret,
+  generateRecoveryCodes,
+  hashRecoveryCode,
+  markTotpWindowUsed,
+  normalizeRecoveryCode,
+  otpauthUrl,
+  totpActiveOf,
+  verifyTotpWindow,
+  verifyUserTotpCode,
+} from "@/lib/server/totp";
 
 /* ============================ utilitas internal ============================ */
 
@@ -94,7 +110,7 @@ function deviceInfoOf(info: any) {
 type LoginRow = {
   id: string;
   user_id: string;
-  required: { password: boolean; face: boolean; email: boolean };
+  required: { password: boolean; face: boolean; email: boolean; totp: boolean };
   done: Record<string, boolean>;
   nonce: string;
   device_id: string | null;
@@ -113,7 +129,7 @@ async function currentLogin(): Promise<LoginRow> {
   return data as LoginRow;
 }
 
-async function markDone(login: LoginRow, step: "password" | "face" | "email") {
+async function markDone(login: LoginRow, step: "password" | "face" | "email" | "totp") {
   await db()
     .from("auth_logins")
     .update({ done: { ...(login.done || {}), [step]: true } })
@@ -123,7 +139,7 @@ async function markDone(login: LoginRow, step: "password" | "face" | "email") {
 function requiredStepsFor(acc: AccountRow) {
   const hasPassword = Boolean(acc.password_hash);
   const hasFace = hasFaceOf(acc);
-  const prefs = acc.login_preferences || { password: hasPassword, face: hasFace, email: false };
+  const prefs = acc.login_preferences || { password: hasPassword, face: hasFace, email: false, totp: false };
   let password = hasPassword && prefs.password !== false;
   let face = hasFace && prefs.face !== false;
   if (!password && !face) {
@@ -132,7 +148,8 @@ function requiredStepsFor(acc: AccountRow) {
     else if (hasFace) face = true;
   }
   const email = Boolean(acc.email_verified && acc.email && prefs.email === true);
-  return { password, face, email };
+  const totp = Boolean(acc.totp_verified && prefs.totp === true);
+  return { password, face, email, totp };
 }
 
 async function startLogin(acc: AccountRow, initialDone: Record<string, boolean> = {}) {
@@ -504,7 +521,7 @@ export async function checkLoginEmailAction() {
 export async function finishLoginAction(body: { devicePublicJwk: any; signature: string; deviceInfo?: any }) {
   return guarded(async () => {
     const login = await currentLogin();
-    for (const step of ["password", "face", "email"] as const) {
+    for (const step of ["password", "face", "email", "totp"] as const) {
       if (login.required[step] && !login.done[step]) return { error: "Langkah verifikasi belum lengkap." };
     }
     if (!validPublicJwk(body?.devicePublicJwk) || typeof body?.signature !== "string") {
@@ -605,12 +622,17 @@ export async function getMyAccountAction() {
     if (!acc) throw new AuthError("Akun tidak ditemukan.");
     const hasPassword = Boolean(acc.password_hash);
     const hasFace = hasFaceOf(acc);
+    const hasTotp = Boolean(acc.totp_verified && (acc.login_preferences as any)?.totp === true);
+    const recoveryCount = Array.isArray(acc.recovery_codes_hash) ? acc.recovery_codes_hash.length : 0;
     return {
       ...lightProfile(acc),
       photo: acc.photo || "",
       hasPassword,
       hasFace,
-      loginPreferences: acc.login_preferences || { password: hasPassword, face: hasFace, email: false },
+      hasTotp,
+      totpVerified: Boolean(acc.totp_verified),
+      recoveryCodesRemaining: recoveryCount,
+      loginPreferences: acc.login_preferences || { password: hasPassword, face: hasFace, email: false, totp: hasTotp },
     };
   });
 }
@@ -668,19 +690,195 @@ export async function updateLoginPreferencesAction(preferences: any) {
       password: hasPass ? Boolean(preferences.password) : false,
       face: hasFc ? Boolean(preferences.face) : false,
       email: Boolean(preferences.email) && Boolean(acc.email) && Boolean(acc.email_verified),
+      totp: Boolean(acc.totp_verified) && Boolean(preferences.totp),
     };
     if (!newPrefs.password && !newPrefs.face) {
       if (hasPass) newPrefs.password = true;
       else if (hasFc) newPrefs.face = true;
+    }
+    // Perubahan apapun pada preferensi login saat 2FA aktif wajib gate TOTP.
+    const totpActive = totpActiveOf(acc);
+    const prefsChanged =
+      newPrefs.password !== (acc.login_preferences?.password ?? hasPass) ||
+      newPrefs.face !== (acc.login_preferences?.face ?? hasFc) ||
+      newPrefs.email !== (acc.login_preferences?.email ?? false) ||
+      newPrefs.totp !== (acc.login_preferences?.totp ?? false);
+    if (prefsChanged && totpActive) {
+      const totpCode = (preferences as any)?.totpCode;
+      await checkTotpForAction(acc, totpCode);
     }
     await db().from("user_accounts").update({ login_preferences: newPrefs, updated_at: new Date().toISOString() }).eq("id", acc.id);
     return { success: true, message: "Preferensi login berhasil disimpan." };
   });
 }
 
+/* ============================ 2FA TOTP ============================ */
+
+const ROTATE_TTL_MS = 30 * 1000;
+const ENROLL_TTL_MS = 15 * 60 * 1000;
+
+async function checkTotpForAction(acc: AccountRow, code: any) {
+  if (!code) throw new AuthError("Kode 2FA diperlukan untuk melanjutkan.", "TOTP_REQUIRED");
+  const keys = [`totp:${acc.id}`, `ip:${await clientIpHash()}`];
+  const msg = await lockedMessage(keys);
+  if (msg) throw new AuthError(msg, "LOCKED");
+  const res = await verifyUserTotpCode(acc, code);
+  if (!res.ok) {
+    await recordFailure(keys[0], TOTP_POLICY);
+    await recordFailure(keys[1], IP_POLICY);
+    await audit(acc.id, "totp_rejected", { reason: "invalid_code" });
+    throw new AuthError("Kode 2FA tidak valid.", "TOTP_INVALID");
+  }
+  if (res.window !== undefined) {
+    await markTotpWindowUsed(acc.id, res.window);
+  }
+  if (res.recoveryHash) {
+    await consumeRecoveryCode(acc.id, res.recoveryHash);
+    await audit(acc.id, "recovery_used", { remaining: 0 });
+  }
+  await clearFailures(keys[0]);
+  return { window: res.window, recovery: !!res.recoveryHash };
+}
+
+/** Mulai enrollment TOTP — butuh sesi valid, password/face + device proof. Tolak bila sudah terverifikasi. */
+export async function enableTotpStartAction(body: { password?: string; proof: DeviceProof }) {
+  return guarded(async () => {
+    const s = await requireSession();
+    const acc = await findAccountById(s.userId);
+    if (!acc) throw new AuthError("Akun tidak ditemukan.");
+    if (acc.totp_verified) {
+      await audit(acc.id, "totp_rejected", { reason: "already_verified" });
+      return { error: "2FA sudah diaktifkan dan tidak dapat ditambahkan ulang.", code: "TOTP_EXISTS" };
+    }
+    // Verifikasi step-up: password (atau face untuk akun face-only) + device proof
+    if (acc.password_hash) {
+      await checkPasswordForAction(acc, body?.password);
+    } else if (hasFaceOf(acc)) {
+      await requireFreshSession(s.sessionId);
+    } else {
+      return { error: "Akun tidak memiliki faktor verifikasi untuk enroll 2FA.", code: "NO_VERIFICATION_FACTOR" };
+    }
+    await requireDeviceProof(ctxOf(s), "enable_totp", body?.proof);
+
+    // Generate secret baru
+    const secretBytes = crypto.randomBytes(20);
+    const secretBase32 = base32Encode(secretBytes);
+    const encSecret = encryptTotpSecret(secretBase32, acc.id);
+
+    await db()
+      .from("user_accounts")
+      .update({
+        totp_secret: encSecret,
+        totp_secret_issued_at: new Date().toISOString(),
+        totp_verified: false,
+        recovery_codes_hash: [],
+        last_used_totp_window: 0,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", acc.id);
+
+    await audit(acc.id, "totp_enroll_start");
+    return { success: true, secretBase32, otpauthUrl: otpauthUrl(acc.name, secretBase32) };
+  });
+}
+
+/** Verifikasi kode TOTP pertama dan aktifkan 2FA — generate recovery codes. */
+export async function verifyTotpAction(body: { code: string }) {
+  return guarded(async () => {
+    const s = await requireSession();
+    const acc = await findAccountById(s.userId);
+    if (!acc) throw new AuthError("Akun tidak ditemukan.");
+    if (acc.totp_verified) {
+      return { error: "2FA sudah diaktifkan.", code: "TOTP_EXISTS" };
+    }
+    if (!acc.totp_secret || !acc.totp_secret_issued_at) {
+      return { error: "Enrollment 2FA tidak ditemukan. Mulai ulang.", code: "TOTP_NOT_STARTED" };
+    }
+    // Cek batas 30 detik dari issued_at (server-side strict)
+    if (Date.now() - new Date(acc.totp_secret_issued_at).getTime() > ROTATE_TTL_MS) {
+      return { error: "Secret sudah kadaluarsa (30 detik). Generate ulang.", code: "TOTP_EXPIRED" };
+    }
+    const keys = [`totp:${acc.id}`, `ip:${await clientIpHash()}`];
+    const msg = await lockedMessage(keys);
+    if (msg) throw new AuthError(msg, "LOCKED");
+
+    if (!acc.totp_secret) throw new AuthError("Secret 2FA tidak ditemukan.", "SERVER_ERROR");
+    const secret = decryptTotpSecret(acc.totp_secret, acc.id);
+    const w = verifyTotpWindow(secret, body?.code);
+    if (w === null) {
+      await recordFailure(keys[0], TOTP_POLICY);
+      await recordFailure(keys[1], IP_POLICY);
+      await audit(acc.id, "totp_rejected", { reason: "invalid_code" });
+      return { error: "Kode TOTP tidak valid.", code: "TOTP_INVALID" };
+    }
+
+    // Berhasil: generate recovery codes & aktifkan
+    const recoveryCodes = generateRecoveryCodes();
+    const recoveryHashes = recoveryCodes.map((c) => hashRecoveryCode(normalizeRecoveryCode(c)!, acc.id));
+
+    await db()
+      .from("user_accounts")
+      .update({
+        totp_verified: true,
+        last_used_totp_window: Number(w),
+        recovery_codes_hash: recoveryHashes,
+        login_preferences: { ...(acc.login_preferences || {}), totp: true },
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", acc.id);
+
+    await clearFailures(keys[0]);
+    await audit(acc.id, "totp_verified", { recovery_count: recoveryCodes.length });
+    return { success: true, recoveryCodes };
+  });
+}
+
+/** Rotasi secret otomatis saat timer 30 detik habis sebelum terverifikasi. */
+export async function rotateTotpSecretAction() {
+  return guarded(async () => {
+    const s = await requireSession();
+    const acc = await findAccountById(s.userId);
+    if (!acc) throw new AuthError("Akun tidak ditemukan.");
+    if (acc.totp_verified) {
+      return { error: "2FA sudah terverifikasi — tidak bisa rotasi.", code: "TOTP_VERIFIED" };
+    }
+    // Generate secret baru, override lama
+    const secretBytes = crypto.randomBytes(20);
+    const secretBase32 = base32Encode(secretBytes);
+    const encSecret = encryptTotpSecret(secretBase32, acc.id);
+
+    await db()
+      .from("user_accounts")
+      .update({
+        totp_secret: encSecret,
+        totp_secret_issued_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", acc.id);
+
+    await audit(acc.id, "totp_rotate");
+    return { success: true, secretBase32, otpauthUrl: otpauthUrl(acc.name, secretBase32) };
+  });
+}
+
+/** Langkah login TOTP / recovery code (dipanggil oleh client saat login.required.totp). */
+export async function loginTotpAction(body: { code: string }) {
+  return guarded(async () => {
+    const login = await currentLogin();
+    if (!login.required.totp) return { error: "Langkah ini tidak diperlukan." };
+    if (login.done.totp) return { success: true };
+    const acc = await findAccountById(login.user_id);
+    if (!acc) throw new AuthError("Akun tidak ditemukan.");
+
+    await checkTotpForAction(acc, body?.code);
+    await markDone(login, "totp");
+    return { success: true };
+  });
+}
+
 /* ============================ aksi sensitif ============================ */
 
-const STEPUP_PURPOSES = new Set(["delete_account", "change_password", "add_password", "set_email", "add_face", "approve_device"]);
+const STEPUP_PURPOSES = new Set(["delete_account", "change_password", "add_password", "set_email", "add_face", "approve_device", "enable_totp"]);
 
 export async function getStepUpNonceAction(purpose: string) {
   return guarded(async () => {
@@ -691,7 +889,7 @@ export async function getStepUpNonceAction(purpose: string) {
   });
 }
 
-export async function changePasswordAction(body: { oldPassword: string; newPassword: string; proof: DeviceProof }) {
+export async function changePasswordAction(body: { oldPassword: string; newPassword: string; proof: DeviceProof; totpCode?: string }) {
   return guarded(async () => {
     const s = await requireSession();
     const acc = await findAccountById(s.userId);
@@ -701,6 +899,10 @@ export async function changePasswordAction(body: { oldPassword: string; newPassw
     if (policyErr) return { error: policyErr };
     await checkPasswordForAction(acc, body?.oldPassword);
     await requireDeviceProof(ctxOf(s), "change_password", body?.proof);
+    // Gate TOTP
+    if (totpActiveOf(acc)) {
+      await checkTotpForAction(acc, body?.totpCode);
+    }
     await db()
       .from("user_accounts")
       .update({ password_hash: await hashPassword(body.newPassword), updated_at: new Date().toISOString() })
@@ -711,7 +913,7 @@ export async function changePasswordAction(body: { oldPassword: string; newPassw
   });
 }
 
-export async function addPasswordAction(body: { newPassword: string; proof: DeviceProof }) {
+export async function addPasswordAction(body: { newPassword: string; proof: DeviceProof; totpCode?: string }) {
   return guarded(async () => {
     const s = await requireSession();
     const acc = await findAccountById(s.userId);
@@ -721,6 +923,10 @@ export async function addPasswordAction(body: { newPassword: string; proof: Devi
     if (policyErr) return { error: policyErr };
     await requireFreshSession(s.sessionId);
     await requireDeviceProof(ctxOf(s), "add_password", body?.proof);
+    // Gate TOTP
+    if (totpActiveOf(acc)) {
+      await checkTotpForAction(acc, body?.totpCode);
+    }
     const hasFace = hasFaceOf(acc);
     const prefs = acc.login_preferences || { face: hasFace, email: false };
     await db()
@@ -738,7 +944,7 @@ export async function addPasswordAction(body: { newPassword: string; proof: Devi
   });
 }
 
-export async function setEmailAction(body: { email: string; password?: string; proof: DeviceProof }) {
+export async function setEmailAction(body: { email: string; password?: string; proof: DeviceProof; totpCode?: string }) {
   return guarded(async () => {
     const s = await requireSession();
     const acc = await findAccountById(s.userId);
@@ -749,6 +955,10 @@ export async function setEmailAction(body: { email: string; password?: string; p
     if (acc.password_hash) await checkPasswordForAction(acc, body?.password);
     else await requireFreshSession(s.sessionId);
     await requireDeviceProof(ctxOf(s), "set_email", body?.proof);
+    // Gate TOTP
+    if (totpActiveOf(acc)) {
+      await checkTotpForAction(acc, body?.totpCode);
+    }
 
     const { data: clash } = await db().from("user_accounts").select("id").ilike("email", email.replace(/[\\%_]/g, (c) => `\\${c}`)).neq("id", acc.id).limit(1);
     if (clash && clash.length > 0) return { error: "Email sudah dipakai akun lain." };
@@ -798,7 +1008,7 @@ export async function checkEmailVerifyAction() {
  * Daftarkan wajah. Hanya SEKALI per akun: bila sudah ada, ditolak keras (dan dicatat).
  * Tidak ada fitur ganti/hapus wajah; patokan tidak pernah berubah.
  */
-export async function addFaceAction(body: { faceVectors: number[][]; password: string; proof: DeviceProof }) {
+export async function addFaceAction(body: { faceVectors: number[][]; password: string; proof: DeviceProof; totpCode?: string }) {
   return guarded(async () => {
     const s = await requireSession();
     const acc = await findAccountById(s.userId);
@@ -814,6 +1024,10 @@ export async function addFaceAction(body: { faceVectors: number[][]; password: s
 
     await checkPasswordForAction(acc, body?.password);
     await requireDeviceProof(ctxOf(s), "add_face", body?.proof);
+    // Gate TOTP
+    if (totpActiveOf(acc)) {
+      await checkTotpForAction(acc, body?.totpCode);
+    }
 
     const prefs = acc.login_preferences || { password: true, email: false };
     const { data: updated, error } = await db()
@@ -837,7 +1051,7 @@ export async function addFaceAction(body: { faceVectors: number[][]; password: s
   });
 }
 
-export async function deleteAccountAction(body: { password: string; proof: DeviceProof }) {
+export async function deleteAccountAction(body: { password: string; proof: DeviceProof; totpCode?: string }) {
   return guarded(async () => {
     const s = await requireSession();
     const acc = await findAccountById(s.userId);
@@ -845,6 +1059,10 @@ export async function deleteAccountAction(body: { password: string; proof: Devic
     if (!acc.password_hash) return { error: "Buat password terlebih dahulu untuk dapat menghapus akun." };
     await checkPasswordForAction(acc, body?.password);
     await requireDeviceProof(ctxOf(s), "delete_account", body?.proof);
+    // Gate TOTP
+    if (totpActiveOf(acc)) {
+      await checkTotpForAction(acc, body?.totpCode);
+    }
 
     const supabase = db();
     await audit(acc.id, "account_deleted");

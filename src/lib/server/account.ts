@@ -17,6 +17,11 @@ export type AccountRow = {
   generation: string | null;
   photo: string | null;
   login_preferences: any;
+  totp_secret: string | null;
+  totp_verified: boolean | null;
+  recovery_codes_hash: string[] | null;
+  totp_secret_issued_at: string | null;
+  last_used_totp_window: number | null;
   created_at: string;
   updated_at: string;
 };

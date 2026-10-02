@@ -7,7 +7,8 @@ export type StepUpPurpose =
   | "add_password"
   | "set_email"
   | "add_face"
-  | "approve_device";
+  | "approve_device"
+  | "enable_totp";
 
 /** Minta nonce ke server lalu tanda tangani dengan kunci perangkat. */
 export async function getStepUpProof(purpose: StepUpPurpose) {

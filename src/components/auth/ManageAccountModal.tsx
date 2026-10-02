@@ -32,6 +32,9 @@ import {
 } from "@/actions/authActions";
 import { getStepUpProof } from "@/lib/stepUp";
 import { LoginVerifURLModal } from "@/components/auth/LoginVerifURLModal";
+import TotpEnrollmentModal from "@/components/auth/TotpEnrollmentModal";
+import TotpPromptModal from "@/components/auth/TotpPromptModal";
+import TotpRecoveryCodesModal from "@/components/auth/TotpRecoveryCodesModal";
 
 interface ManageAccountModalProps {
   isOpen: boolean;
@@ -75,6 +78,9 @@ export default function ManageAccountModal({
 }: ManageAccountModalProps) {
   const [hasPassword, setHasPassword] = useState(false);
   const [hasFace, setHasFace] = useState(false);
+  const [hasTotp, setHasTotp] = useState(false);
+  const [totpVerified, setTotpVerified] = useState(false);
+  const [recoveryRemaining, setRecoveryRemaining] = useState(0);
   const [registeredEmail, setRegisteredEmail] = useState("");
   const [emailVerified, setEmailVerified] = useState(false);
   const [isEmailVerifyOpen, setIsEmailVerifyOpen] = useState(false);
@@ -85,9 +91,20 @@ export default function ManageAccountModal({
   const [loginPrefPassword, setLoginPrefPassword] = useState(true);
   const [loginPrefFace, setLoginPrefFace] = useState(true);
   const [loginPrefEmail, setLoginPrefEmail] = useState(false);
+  const [loginPrefTotp, setLoginPrefTotp] = useState(false);
   const [isSavingPrefs, setIsSavingPrefs] = useState(false);
   const [prefsSuccessMsg, setPrefsSuccessMsg] = useState("");
   const [prefsErrorMsg, setPrefsErrorMsg] = useState("");
+
+  // 2FA modal states
+  const [isTotpEnrollOpen, setIsTotpEnrollOpen] = useState(false);
+  const [isTotpPromptOpen, setIsTotpPromptOpen] = useState(false);
+  const [totpPromptError, setTotpPromptError] = useState("");
+  const [isTotpSubmitting, setIsTotpSubmitting] = useState(false);
+  // pendingAction menyimpan callback yang akan dijalankan setelah kode TOTP terverifikasi
+  const [pendingAction, setPendingAction] = useState<null | { label: string; run: (code: string) => Promise<void> }>(null);
+  const [pendingToggle, setPendingToggle] = useState<null | { password: boolean; face: boolean; email: boolean; totp: boolean }>(null);
+  const [togglePassword, setTogglePassword] = useState("");
 
   // Form states
   const [activeForm, setActiveForm] = useState<
@@ -123,12 +140,16 @@ export default function ManageAccountModal({
       if (data && !data.error) {
         setHasPassword(!!data.hasPassword);
         setHasFace(!!data.hasFace);
+        setHasTotp(!!data.hasTotp);
+        setTotpVerified(!!data.totpVerified);
+        setRecoveryRemaining(typeof data.recoveryCodesRemaining === "number" ? data.recoveryCodesRemaining : 0);
         setRegisteredEmail(data.email || "");
         setEmailVerified(!!data.emailVerified);
         if (data.loginPreferences) {
           setLoginPrefPassword(data.loginPreferences.password ?? true);
           setLoginPrefFace(data.loginPreferences.face ?? true);
           setLoginPrefEmail(data.loginPreferences.email ?? false);
+          setLoginPrefTotp(data.loginPreferences.totp ?? false);
         }
       }
     } catch (e) {
@@ -194,6 +215,31 @@ export default function ManageAccountModal({
       return;
     }
 
+    if (hasTotp) {
+      setPendingAction({
+        label: "Tambah Password",
+        run: async (totpCode: string) => {
+          setIsSubmitting(true);
+          try {
+            const proof = await getStepUpProof("add_password");
+            const data: any = await addPasswordAction({ newPassword, proof, totpCode });
+            if (!data?.success) throw new Error(data?.error || "Gagal menambahkan password.");
+            setSuccessMsg("Password berhasil ditambahkan ke akun Anda!");
+            setHasPassword(true);
+            setActiveForm("none");
+            setNewPassword("");
+            setConfirmPassword("");
+            onRefreshProfile();
+            fetchStatus();
+          } finally {
+            setIsSubmitting(false);
+          }
+        },
+      });
+      setIsTotpPromptOpen(true);
+      return;
+    }
+
     setIsSubmitting(true);
     try {
       const proof = await getStepUpProof("add_password");
@@ -225,6 +271,31 @@ export default function ManageAccountModal({
       return;
     }
 
+    if (hasTotp) {
+      setPendingAction({
+        label: "Reset Password",
+        run: async (totpCode: string) => {
+          setIsSubmitting(true);
+          try {
+            const proof = await getStepUpProof("change_password");
+            const data: any = await changePasswordAction({ oldPassword, newPassword, proof, totpCode });
+            if (!data?.success) throw new Error(data?.error || "Gagal memproses ganti password.");
+            setSuccessMsg("Password berhasil diperbarui!");
+            setActiveForm("none");
+            setOldPassword("");
+            setNewPassword("");
+            setConfirmPassword("");
+            onRefreshProfile();
+            fetchStatus();
+          } finally {
+            setIsSubmitting(false);
+          }
+        },
+      });
+      setIsTotpPromptOpen(true);
+      return;
+    }
+
     setIsSubmitting(true);
     try {
       const proof = await getStepUpProof("change_password");
@@ -253,6 +324,37 @@ export default function ManageAccountModal({
     }
     if (hasPassword && !currentPassForEmail) {
       setErrorMsg(missingPassMsg);
+      return;
+    }
+
+    if (hasTotp) {
+      setPendingAction({
+        label: "Ubah Email",
+        run: async (totpCode: string) => {
+          setIsSubmitting(true);
+          try {
+            const proof = await getStepUpProof("set_email");
+            const data: any = await setEmailAction({
+              email: newEmailInput,
+              password: currentPassForEmail || undefined,
+              proof,
+              totpCode,
+            });
+            if (!data?.success) throw new Error(data?.error || "Gagal memperbarui email.");
+            setSuccessMsg(successText(newEmailInput));
+            setRegisteredEmail(newEmailInput.trim().toLowerCase());
+            setEmailVerified(false);
+            setActiveForm("none");
+            setNewEmailInput("");
+            setCurrentPassForEmail("");
+            onRefreshProfile();
+            fetchStatus();
+          } finally {
+            setIsSubmitting(false);
+          }
+        },
+      });
+      setIsTotpPromptOpen(true);
       return;
     }
 
@@ -327,13 +429,31 @@ export default function ManageAccountModal({
       }
     }
 
+    const newPrefs = {
+      password: loginPrefPassword,
+      face: loginPrefFace,
+      email: loginPrefEmail,
+      totp: loginPrefTotp,
+    };
+
+    // Bila 2FA aktif (totpVerified) dan ada perubahan pada preferensi, minta TOTP di akhir
+    if (totpVerified && hasTotp) {
+      const prefsChanged =
+        newPrefs.password !== (loginPrefPassword) || // current state
+        newPrefs.face !== loginPrefFace ||
+        newPrefs.email !== loginPrefEmail ||
+        newPrefs.totp !== loginPrefTotp;
+      if (prefsChanged) {
+        // Simpan pending, buka input password/wajah, lalu nanti TOTP prompt
+        setPendingToggle(newPrefs);
+        setTogglePassword("");
+        return;
+      }
+    }
+
     setIsSavingPrefs(true);
     try {
-      const data: any = await updateLoginPreferencesAction({
-        password: loginPrefPassword,
-        face: loginPrefFace,
-        email: loginPrefEmail,
-      });
+      const data: any = await updateLoginPreferencesAction(newPrefs);
 
       if (!data?.success) {
         throw new Error(data?.error || "Gagal menyimpan preferensi metode login.");
@@ -435,7 +555,7 @@ export default function ManageAccountModal({
               </div>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
               {/* Status Email */}
               <div className={`p-3 rounded-xl border flex flex-col justify-between ${registeredEmail ? "bg-blue-950/40 border-blue-500/30 text-blue-300" : "bg-white/5 border-white/10 text-white/40"}`}>
                 <div className="flex items-center gap-2 mb-1">
@@ -463,6 +583,27 @@ export default function ManageAccountModal({
                   <p className="text-xs font-bold">Wajah AI</p>
                 </div>
                 <p className="text-[10px] opacity-80">{hasFace ? "Aktif" : "Belum Ada"}</p>
+              </div>
+
+              {/* Status 2FA */}
+              <div className={`p-3 rounded-xl border flex flex-col justify-between ${hasTotp ? "bg-emerald-950/40 border-emerald-500/30 text-emerald-300" : "bg-white/5 border-white/10 text-white/40"}`}>
+                <div className="flex items-center gap-2 mb-1">
+                  <ShieldCheck className="w-4 h-4 shrink-0" />
+                  <p className="text-xs font-bold">2FA (TOTP)</p>
+                </div>
+                <div className="flex items-center justify-between">
+                  <p className="text-[10px] opacity-80">{hasTotp ? `Aktif (${recoveryRemaining} recovery code)` : "Belum Aktif"}</p>
+                  {!totpVerified && (
+                    <button
+                      type="button"
+                      disabled={isLoadingStatus}
+                      onClick={() => setIsTotpEnrollOpen(true)}
+                      className="px-2 py-0.5 rounded bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 text-[10px] font-bold border border-amber-500/30 transition cursor-pointer disabled:opacity-40"
+                    >
+                      Aktifkan 2FA
+                    </button>
+                  )}
+                </div>
               </div>
             </div>
 
@@ -544,6 +685,21 @@ export default function ManageAccountModal({
                       </div>
                     </label>
                   )}
+                  {/* 2FA Checkbox (hanya muncul jika 2FA sudah terverifikasi) */}
+                  {totpVerified && (
+                    <label className="flex items-start gap-3 p-2.5 rounded-xl bg-amber-950/20 hover:bg-amber-950/30 border border-amber-500/20 cursor-pointer transition">
+                      <input
+                        type="checkbox"
+                        checked={loginPrefTotp}
+                        onChange={(e) => setLoginPrefTotp(e.target.checked)}
+                        className="mt-0.5 rounded border-white/20 bg-slate-900 text-amber-500 focus:ring-amber-500 h-4 w-4"
+                      />
+                      <div className="text-xs">
+                        <span className="font-semibold text-white block">Nyalakan 2FA (TOTP)?</span>
+                        <span className="text-white/60 text-[11px]">Akun akan meminta kode dari aplikasi authenticator atau recovery code di setiap login & aksi sensitif. Mematikan memerlukan kode 2FA.</span>
+                      </div>
+                    </label>
+                  )}
                 </div>
 
                 <button
@@ -557,6 +713,65 @@ export default function ManageAccountModal({
                     <span>Simpan Pengaturan Metode Login</span>
                   )}
                 </button>
+                {/* Input password/wajah untuk menyimpan preferensi (diminta di akhir bila 2FA aktif atau hanya password bila toggle biasa) */}
+                {(pendingToggle ? (
+                  <div className="mt-3 p-3 rounded-xl bg-slate-800 border border-amber-500/30 space-y-2">
+                    <p className="text-[11px] text-amber-300 flex items-center gap-1.5"><AlertCircle className="w-3.5 h-3.5" /> Verifikasi untuk menyimpan preferensi</p>
+                    {hasPassword ? (
+                      <input
+                        type="password"
+                        value={togglePassword}
+                        onChange={(e) => setTogglePassword(e.target.value)}
+                        placeholder="Password saat ini"
+                        autoComplete="current-password"
+                        className="w-full rounded-xl border border-white/15 bg-slate-900 px-3.5 py-2 text-xs text-white placeholder-white/30 focus:border-indigo-400 focus:outline-none"
+                      />
+                    ) : (
+                      <p className="text-[11px] text-white/60">Akan diminta verifikasi wajah setelah menekan Simpan.</p>
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const pending = pendingToggle;
+                        if (!pending) return;
+                        // Trigger TOTP prompt modal for aksi ini
+                        if (hasTotp) {
+                          setPendingAction({
+                            label: "Ubah preferensi login",
+                            run: async (code: string) => {
+                              const data: any = await updateLoginPreferencesAction({ ...pending, totpCode: code, password: togglePassword || undefined });
+                              if (!data?.success) throw new Error(data?.error || "Gagal menyimpan.");
+                              setPendingToggle(null);
+                              setPendingAction(null);
+                              setTogglePassword("");
+                              setPrefsSuccessMsg("Preferensi login berhasil diperbarui!");
+                              fetchStatus();
+                            },
+                          });
+                          setPendingToggle(null);
+                          setIsTotpPromptOpen(true);
+                        } else {
+                          void (async () => {
+                            try {
+                              const data: any = await updateLoginPreferencesAction({ ...pending, password: togglePassword || undefined });
+                              if (!data?.success) throw new Error(data?.error || "Gagal menyimpan.");
+                              setPendingToggle(null);
+                              setTogglePassword("");
+                              setPrefsSuccessMsg("Preferensi login berhasil diperbarui!");
+                              fetchStatus();
+                            } catch (err: any) {
+                              setPrefsErrorMsg(err.message || "Gagal.");
+                            }
+                          })();
+                        }
+                      }}
+                      className="w-full py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 font-bold text-xs text-white transition cursor-pointer"
+                    >
+                      Konfirmasi Simpan
+                    </button>
+                    <button type="button" onClick={() => { setPendingToggle(null); setTogglePassword(""); }} className="w-full text-[11px] text-white/40 hover:text-white/70 transition cursor-pointer">Kembali</button>
+                  </div>
+                ) : null)}
               </form>
             )}
 
@@ -1015,6 +1230,48 @@ export default function ManageAccountModal({
           setEmailVerified(true);
           setSuccessMsg("Email berhasil diverifikasi.");
           onRefreshProfile();
+        }}
+      />
+
+      {/* Modal Enrollment 2FA */}
+      <TotpEnrollmentModal
+        isOpen={isTotpEnrollOpen}
+        userName={userName}
+        hasPassword={hasPassword}
+        onClose={() => setIsTotpEnrollOpen(false)}
+        onActivated={() => {
+          fetchStatus();
+          setSuccessMsg("2FA berhasil diaktifkan!");
+        }}
+      />
+
+      {/* Modal Prompt TOTP untuk gate aksi sensitif (pendingAction) */}
+      <TotpPromptModal
+        isOpen={isTotpPromptOpen}
+        title={pendingAction ? pendingAction.label : "Verifikasi 2FA Diperlukan"}
+        subtitle="Masukkan kode 6 digit dari aplikasi authenticator atau recovery code"
+        isLoading={isTotpSubmitting}
+        error={totpPromptError}
+        onSubmit={async (code) => {
+          if (!pendingAction) return;
+          setIsTotpSubmitting(true);
+          setTotpPromptError("");
+          try {
+            await pendingAction.run(code);
+            setIsTotpPromptOpen(false);
+            setPendingAction(null);
+            setTotpPromptError("");
+          } catch (err: any) {
+            setTotpPromptError(err.message || "Terjadi kesalahan.");
+          } finally {
+            setIsTotpSubmitting(false);
+          }
+        }}
+        onClose={() => {
+          setIsTotpPromptOpen(false);
+          setPendingAction(null);
+          setTotpPromptError("");
+          setErrorMsg("");
         }}
       />
     </>

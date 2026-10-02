@@ -9,7 +9,7 @@ export class AuthError extends Error {
 }
 
 /** Fail-closed: lempar error bila env tidak ada / terlalu pendek. */
-export function requireSecret(name: "SESSION_SECRET" | "FACE_DATA_KEY"): string {
+export function requireSecret(name: "SESSION_SECRET" | "FACE_DATA_KEY" | "TOTP_KEY_SECRET"): string {
   const v = process.env[name];
   if (!v || v.length < 32) {
     throw new AuthError(`${name} belum dikonfigurasi di server.`, "MISCONFIGURED");
