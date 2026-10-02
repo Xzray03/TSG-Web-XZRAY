@@ -76,9 +76,7 @@ export async function loadFaceLandmarker(): Promise<FaceLandmarker> {
     }
   }
 
-  const vision = await FilesetResolver.forVisionTasks(
-    "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@latest/wasm"
-  );
+  const vision = await FilesetResolver.forVisionTasks("/mediapipe/wasm");
 
   const faceLandmarker = await FaceLandmarker.createFromOptions(vision, {
     baseOptions: {
