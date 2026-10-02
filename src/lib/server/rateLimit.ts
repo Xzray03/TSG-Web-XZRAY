@@ -65,7 +65,8 @@ export async function hit(key: string, p: Policy): Promise<boolean> {
 export const LOGIN_POLICY: Policy = { max: 5, windowSec: 900, lockSec: 900 };
 export const IP_POLICY: Policy = { max: 30, windowSec: 900, lockSec: 900 };
 export const EMAIL_POLICY: Policy = { max: 5, windowSec: 3600, lockSec: 3600 };
-export const POLL_POLICY: Policy = { max: 120, windowSec: 600, lockSec: 300 };
+// Polling tiap ~3 detik selama <= 15 menit; batas longgar agar pengguna sah tidak terkunci.
+export const POLL_POLICY: Policy = { max: 400, windowSec: 600, lockSec: 60 };
 
 export async function audit(userId: string | null, event: string, meta: Record<string, any> = {}): Promise<void> {
   try {
