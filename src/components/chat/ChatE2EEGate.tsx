@@ -1,9 +1,12 @@
 "use client";
 
 import { useState } from "react";
-import { Lock, Loader2, ShieldCheck, AlertTriangle } from "lucide-react";
+import { Lock, Loader2, ShieldCheck, AlertTriangle, Camera } from "lucide-react";
 import { publishChatKeyAction } from "@/actions/chatKeyActions";
+import { getMyAccountAction } from "@/actions/authActions";
 import { createIdentity, unlockIdentity, type ChatKeyRecord } from "@/lib/e2ee";
+import TotpPromptModal from "@/components/auth/TotpPromptModal";
+import ChatE2EEFaceVerifyModal from "@/components/chat/ChatE2EEFaceVerifyModal";
 
 type Props = {
   userId: string;
@@ -22,6 +25,19 @@ export function ChatE2EEGate({ userId, mode, record, onReady }: Props) {
   const [error, setError] = useState("");
   const [resetting, setResetting] = useState(false);
 
+  // Re-auth state for reset/change key
+  const [reauthPassword, setReauthPassword] = useState("");
+  const [reauthMode, setReauthMode] = useState<"none" | "password" | "face">("none");
+  const [faceVerifiedToken, setFaceVerifiedToken] = useState("");
+
+  // TOTP gate state
+  const [totpPromptOpen, setTotpPromptOpen] = useState(false);
+  const [totpError, setTotpError] = useState("");
+  const [totpSubmitting, setTotpSubmitting] = useState(false);
+
+  // Face verify modal state
+  const [isFaceVerifyOpen, setIsFaceVerifyOpen] = useState(false);
+
   const isSetup = mode === "setup" || resetting;
 
   const validateNew = (): string => {
@@ -30,6 +46,78 @@ export function ChatE2EEGate({ userId, mode, record, onReady }: Props) {
     if (pass !== confirm) return "Konfirmasi kata sandi tidak sama.";
     if (!ack) return "Centang pernyataan bahwa Anda memahami risiko kehilangan kata sandi.";
     return "";
+  };
+
+  /** Fetch akun utk cek password/face & TOTP saat mode reset */
+  const fetchReauthMode = async () => {
+    try {
+      const data: any = await getMyAccountAction();
+      if (data && !data.error) {
+        if (data.hasPassword) setReauthMode("password");
+        else if (data.hasFace) setReauthMode("face");
+        else setReauthMode("none");
+      }
+    } catch {
+      setReauthMode("none");
+    }
+  };
+
+  const handleResetClick = () => {
+    setResetting(true);
+    setPass("");
+    setConfirm("");
+    setAck(false);
+    setError("");
+    setReauthPassword("");
+    setFaceVerifiedToken("");
+    void fetchReauthMode();
+  };
+
+  /** Publish kunci dengan step-up password/wajah + (opsional) TOTP */
+  const doPublish = async (totpCode?: string) => {
+    setBusy(true);
+    try {
+      const nextVersion = resetting ? (record?.keyVersion || 0) + 1 : 1;
+      const { record: newRecord, commit } = await createIdentity(userId, pass, nextVersion);
+      const res: any = await publishChatKeyAction({
+        userId,
+        record: newRecord,
+        replace: resetting,
+        password: reauthPassword || undefined,
+        faceVerifiedToken: faceVerifiedToken || undefined,
+        totpCode,
+      });
+      if (res?.error) {
+        if (res.code === "TOTP_REQUIRED") {
+          setTotpPromptOpen(true);
+          return;
+        }
+        if (res.code === "TOTP_INVALID") {
+          setTotpError(res.error || "Kode 2FA tidak valid.");
+          setTotpPromptOpen(true);
+          return;
+        }
+        if (res.code === "FACE_REQUIRED" || res.code === "FACE_INVALID") {
+          setFaceVerifiedToken("");
+          setIsFaceVerifyOpen(true);
+          return;
+        }
+        setError(
+          res.error === "exists"
+            ? "Kunci sudah terdaftar di server. Muat ulang halaman lalu masukkan kata sandi Anda."
+            : res.error
+        );
+        return;
+      }
+      await commit();
+      setTotpPromptOpen(false);
+      setIsFaceVerifyOpen(false);
+      onReady();
+    } catch {
+      setError("Gagal membuat kunci enkripsi di perangkat ini.");
+    } finally {
+      setBusy(false);
+    }
   };
 
   const submit = async (e: React.FormEvent) => {
@@ -56,26 +144,39 @@ export function ChatE2EEGate({ userId, mode, record, onReady }: Props) {
       return;
     }
 
-    setBusy(true);
-    try {
-      const nextVersion = resetting ? (record?.keyVersion || 0) + 1 : 1;
-      const { record: newRecord, commit } = await createIdentity(userId, pass, nextVersion);
-      const res: any = await publishChatKeyAction({ userId, record: newRecord, replace: resetting });
-      if (res?.error) {
-        setError(
-          res.error === "exists"
-            ? "Kunci sudah terdaftar di server. Muat ulang halaman lalu masukkan kata sandi Anda."
-            : res.error
-        );
+    // Saat reset/ubah kunci: wajib password/wajah dulu sebelum publish
+    if (resetting) {
+      if (reauthMode === "password" && !reauthPassword) {
+        setError("Masukkan password akun untuk mereset kunci enkripsi.");
         return;
       }
-      await commit();
-      onReady();
-    } catch {
-      setError("Gagal membuat kunci enkripsi di perangkat ini.");
-    } finally {
-      setBusy(false);
+      if (reauthMode === "face" && !faceVerifiedToken) {
+        // Buka modal verifikasi wajah khusus re-auth
+        setIsFaceVerifyOpen(true);
+        return;
+      }
     }
+
+    await doPublish();
+  };
+
+  /** Setelah TOTP terverifikasi, ulangi publish */
+  const handleTotpSubmit = async (code: string) => {
+    setTotpSubmitting(true);
+    setTotpError("");
+    try {
+      await doPublish(code);
+    } finally {
+      setTotpSubmitting(false);
+    }
+  };
+
+  /** Setelah verifikasi wajah selesai, ulangi publish */
+  const handleFaceVerified = (faceVerifiedToken: string) => {
+    setFaceVerifiedToken(faceVerifiedToken);
+    setIsFaceVerifyOpen(false);
+    // Langsung lanjutkan publish (tanpa password karena sudah face verified)
+    void doPublish();
   };
 
   return (
@@ -132,6 +233,47 @@ export function ChatE2EEGate({ userId, mode, record, onReady }: Props) {
           </>
         )}
 
+        {/* Re-auth section saat reset kunci */}
+        {resetting && (
+          <div className="mb-3 p-3 rounded-xl bg-amber-500/5 border border-amber-500/20 space-y-2">
+            <p className="text-[11px] text-amber-300 flex items-center gap-1.5">
+              <ShieldCheck className="w-3.5 h-3.5" />
+              Verifikasi Identitas Anda (Wajib)
+            </p>
+            {reauthMode === "password" ? (
+              <input
+                type="password"
+                value={reauthPassword}
+                onChange={(e) => setReauthPassword(e.target.value)}
+                placeholder="Password akun saat ini"
+                autoComplete="current-password"
+                className="w-full rounded-xl bg-slate-800 border border-white/10 px-3 py-2 text-sm text-white outline-none focus:border-emerald-500/50"
+              />
+            ) : reauthMode === "face" ? (
+              faceVerifiedToken ? (
+                <div className="flex items-center gap-2 text-[11px] text-emerald-300">
+                  <Camera className="w-3.5 h-3.5" />
+                  <span>Wajah terverifikasi ✓</span>
+                  <button type="button" onClick={() => setFaceVerifiedToken("")} className="text-[11px] text-amber-300 underline">
+                    Ganti
+                  </button>
+                </div>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => setIsFaceVerifyOpen(true)}
+                  className="w-full py-2 rounded-xl bg-emerald-500/20 hover:bg-emerald-500/30 border border-emerald-500/40 text-emerald-300 text-xs font-semibold flex items-center justify-center gap-1.5 transition cursor-pointer"
+                >
+                  <Camera className="w-3.5 h-3.5" />
+                  <span>Verifikasi Wajah AI</span>
+                </button>
+              )
+            ) : (
+              <p className="text-[11px] text-white/40">Memuat verifikasi...</p>
+            )}
+          </div>
+        )}
+
         {error && (
           <div className="flex items-start gap-2 text-[11px] text-red-300 bg-red-500/10 border border-red-500/20 rounded-lg px-2.5 py-2 mb-2">
             <AlertTriangle className="w-3.5 h-3.5 mt-0.5 shrink-0" />
@@ -151,19 +293,38 @@ export function ChatE2EEGate({ userId, mode, record, onReady }: Props) {
         {mode === "unlock" && !resetting && (
           <button
             type="button"
-            onClick={() => {
-              setResetting(true);
-              setPass("");
-              setConfirm("");
-              setAck(false);
-              setError("");
-            }}
+            onClick={handleResetClick}
             className="w-full mt-2 text-[11px] text-slate-400 hover:text-red-300 underline underline-offset-2"
           >
             Lupa kata sandi? Reset kunci
           </button>
         )}
       </form>
+
+      {/* TOTP Prompt Modal */}
+      <TotpPromptModal
+        isOpen={totpPromptOpen}
+        title="Reset Kunci Enkripsi Chat"
+        subtitle="Masukkan kode 6 digit dari aplikasi authenticator atau recovery code"
+        isLoading={totpSubmitting}
+        error={totpError}
+        onSubmit={handleTotpSubmit}
+        onClose={() => {
+          setTotpPromptOpen(false);
+          setTotpError("");
+        }}
+      />
+
+      {/* Face Verification Modal (re-auth for chat key reset) */}
+      <ChatE2EEFaceVerifyModal
+        isOpen={isFaceVerifyOpen}
+        userId={userId}
+        onVerified={handleFaceVerified}
+        onClose={() => {
+          setIsFaceVerifyOpen(false);
+          setFaceVerifiedToken("");
+        }}
+      />
     </div>
   );
 }

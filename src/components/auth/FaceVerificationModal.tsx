@@ -17,7 +17,7 @@ import { getStepUpProof } from "@/lib/stepUp";
 
 interface FaceVerificationModalProps {
   isOpen: boolean;
-  mode: "register" | "login";
+  mode: "register" | "login" | "reauth";
   storedFaceVectors?: Array<number[]>; // tidak dipakai lagi (server tidak pernah mengirim vektor)
   /** Password saat ini; wajib pada mode "register" (menambah wajah ke akun yang sedang login). */
   addFacePassword?: string;
@@ -392,6 +392,7 @@ export default function FaceVerificationModal({
                     ];
 
                     // Pencocokan dilakukan di SERVER. Klien hanya mengirim vektor dan menerima lolos/gagal.
+                    let verifiedPayload: any = { step: "face" };
                     if (mode === "register") {
                       // MENAMBAH WAJAH (sekali per akun; ditolak keras bila sudah ada).
                       const proof = await getStepUpProof("add_face");
@@ -403,6 +404,14 @@ export default function FaceVerificationModal({
                       if (!data?.success) {
                         throw new Error(data?.error || "Gagal menyimpan pendaftaran wajah.");
                       }
+                    } else if (mode === "reauth") {
+                      // Re-auth wajah untuk reset chat key: hanya STATUS token yang keluar dari modal.
+                      const { verifyFaceForChatKeyResetAction } = await import("@/actions/chatKeyActions");
+                      const data: any = await verifyFaceForChatKeyResetAction(fourVectors);
+                      if (!data?.success) {
+                        throw new Error(data?.error || "Verifikasi Wajah Gagal: Wajah tidak cocok.");
+                      }
+                      verifiedPayload = { step: "face", faceVerifiedToken: data.faceVerifiedToken };
                     } else {
                       const data: any = await loginFaceAction(fourVectors);
                       if (!data?.success) {
@@ -410,7 +419,7 @@ export default function FaceVerificationModal({
                       }
                     }
 
-                    const profile = { step: "face" };
+                    const profile = verifiedPayload;
 
                     setStep("SUCCESS");
 

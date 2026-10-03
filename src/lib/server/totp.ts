@@ -2,6 +2,7 @@ import crypto from "crypto";
 import { db } from "./db";
 import { AuthError, requireSecret } from "./secrets";
 import { AccountRow } from "./account";
+import { IP_POLICY, TOTP_POLICY, audit, clearFailures, clientIpHash, isLocked, recordFailure } from "./rateLimit";
 
 // ==============================================================================
 // TSG-Web-XZRAY: Utilitas TOTP 2FA (RFC 6238: HMAC-SHA1, 6 digit, periode 30s)
@@ -204,4 +205,30 @@ export async function consumeRecoveryCode(userId: string, hashToRemove: string):
     .from("user_accounts")
     .update({ recovery_codes_hash: arr.filter((h) => h !== hashToRemove) })
     .eq("id", userId);
+}
+
+/** Gate pembantu seragam untuk aksi sensitif (dipanggil di authActions & chatKeyActions). */
+export async function assertTotpForAction(acc: AccountRow, code: any): Promise<void> {
+  if (!code) throw new AuthError("Kode 2FA diperlukan untuk melanjutkan.", "TOTP_REQUIRED");
+  const keys = [`totp:${acc.id}`, `ip:${await clientIpHash()}`];
+  const l = await isLocked(keys[0]);
+  if (l.locked) throw new AuthError(`Terlalu banyak percobaan. Coba lagi dalam ${Math.max(1, Math.ceil(l.retryAfterSec / 60))} menit.`, "LOCKED");
+  const lIp = await isLocked(keys[1]);
+  if (lIp.locked) throw new AuthError(`Terlalu banyak percobaan dari jaringan ini. Coba lagi dalam ${Math.max(1, Math.ceil(lIp.retryAfterSec / 60))} menit.`, "LOCKED");
+
+  const res = await verifyUserTotpCode(acc, code);
+  if (!res.ok) {
+    await recordFailure(keys[0], TOTP_POLICY);
+    await recordFailure(keys[1], IP_POLICY);
+    await audit(acc.id, "totp_rejected", { reason: "invalid_code" });
+    throw new AuthError("Kode 2FA tidak valid.", "TOTP_INVALID");
+  }
+  if (res.window !== undefined) {
+    await markTotpWindowUsed(acc.id, res.window);
+  }
+  if (res.recoveryHash) {
+    await consumeRecoveryCode(acc.id, res.recoveryHash);
+    await audit(acc.id, "recovery_used");
+  }
+  await clearFailures(keys[0]);
 }

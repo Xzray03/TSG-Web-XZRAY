@@ -1,7 +1,14 @@
 "use server";
 
 import { createClient } from "@supabase/supabase-js";
-import { getSession } from "@/lib/server/session";
+import { guarded, getSession } from "@/lib/server/session";
+import { AuthError, randomToken, tokenHash } from "@/lib/server/secrets";
+import { findAccountById, hasFaceOf } from "@/lib/server/account";
+import { audit, clientIpHash, isLocked, recordFailure, clearFailures, LOGIN_POLICY, IP_POLICY } from "@/lib/server/rateLimit";
+import { totpActiveOf, assertTotpForAction } from "@/lib/server/totp";
+import { verifyPassword } from "@/lib/server/password";
+import { validateVectors, matchFace, decryptTemplate, legacyAnchor } from "@/lib/server/faceTemplate";
+import { issueNonce } from "@/lib/server/deviceProof";
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || "";
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || "";
@@ -93,6 +100,50 @@ export async function getPublicKeysAction(userIds: string[]) {
   }
 }
 
+/** Verifikasi wajah server-side khusus untuk reset chat key: menghasilkan token status valid 2 menit. */
+export async function verifyFaceForChatKeyResetAction(faceVectors: number[][]) {
+  return guarded(async () => {
+    const sess = await getSession();
+    if (!sess) return { error: "Sesi tidak valid.", code: "UNAUTHENTICATED" };
+    const acc = await findAccountById(sess.userId);
+    if (!acc) throw new AuthError("Akun tidak ditemukan.");
+    if (!hasFaceOf(acc)) return { error: "Wajah tidak terdaftar pada akun ini." };
+
+    const vectors = validateVectors(faceVectors);
+    if (!vectors) return { error: "Data wajah tidak valid." };
+
+    let template: number[][] | null = null;
+    if (acc.face_template) {
+      try {
+        template = decryptTemplate(acc.face_template, acc.id);
+      } catch {}
+    } else {
+      const anchor = legacyAnchor(acc.face_vectors);
+      if (anchor) {
+        template = validateVectors(anchor.length === 4 ? anchor : [anchor[0], anchor[0], anchor[0], anchor[0]]);
+      }
+    }
+
+    if (!template || !matchFace(template, vectors)) {
+      await audit(acc.id, "chat_key_reset_face_failed");
+      return { error: "Verifikasi Wajah Gagal: Wajah tidak cocok dengan patokan akun." };
+    }
+
+    // Terbitkan nonce token status verified sekali pakai (2 menit)
+    const token = randomToken(32);
+    await getSupabaseClient().from("auth_nonces").insert({
+      user_id: acc.id,
+      session_id: sess.sessionId,
+      purpose: "chat_key_reset_face",
+      nonce_hash: tokenHash(token),
+      expires_at: new Date(Date.now() + 2 * 60 * 1000).toISOString(),
+    });
+
+    await audit(acc.id, "chat_key_reset_face_passed");
+    return { success: true, faceVerifiedToken: token };
+  });
+}
+
 /**
  * Publikasikan kunci baru. Tanpa replace=true, gagal bila kunci sudah ada (mencegah penimpaan tak sengaja).
  * replace=true dipakai untuk reset kunci; lawan bicara akan melihat peringatan "kunci berubah".
@@ -107,33 +158,91 @@ export async function publishChatKeyAction(body: {
     keyVersion: number;
   };
   replace?: boolean;
+  password?: string;
+  faceVerifiedToken?: string;
+  totpCode?: string;
 }) {
-  const sess = await getSession();
-  if (!sess) return { error: "Sesi tidak valid atau telah berakhir. Silakan login kembali.", code: "UNAUTHENTICATED" };
-  const userId = sess.userId;
-  const { record, replace } = body || ({} as any);
-  if (
-    !record ||
-    !validJwk(record.publicKey) ||
-    typeof record.wrappedPrivateKey !== "string" ||
-    record.wrappedPrivateKey.length > 4096 ||
-    !B64_RE.test(record.wrappedPrivateKey) ||
-    typeof record.kdfSalt !== "string" ||
-    record.kdfSalt.length > 64 ||
-    !B64_RE.test(record.kdfSalt) ||
-    !Number.isInteger(record.kdfIterations) ||
-    record.kdfIterations < 600000 ||
-    record.kdfIterations > 5000000 ||
-    !Number.isInteger(record.keyVersion) ||
-    record.keyVersion < 1 ||
-    record.keyVersion > 1000000
-  ) {
-    return { error: "Data kunci tidak valid." };
-  }
+  return guarded(async () => {
+    const sess = await getSession();
+    if (!sess) return { error: "Sesi tidak valid atau telah berakhir. Silakan login kembali.", code: "UNAUTHENTICATED" };
+    const userId = sess.userId;
+    const { record, replace, password, faceVerifiedToken, totpCode } = body || ({} as any);
+    if (
+      !record ||
+      !validJwk(record.publicKey) ||
+      typeof record.wrappedPrivateKey !== "string" ||
+      record.wrappedPrivateKey.length > 4096 ||
+      !B64_RE.test(record.wrappedPrivateKey) ||
+      typeof record.kdfSalt !== "string" ||
+      record.kdfSalt.length > 64 ||
+      !B64_RE.test(record.kdfSalt) ||
+      !Number.isInteger(record.kdfIterations) ||
+      record.kdfIterations < 600000 ||
+      record.kdfIterations > 5000000 ||
+      !Number.isInteger(record.keyVersion) ||
+      record.keyVersion < 1 ||
+      record.keyVersion > 1000000
+    ) {
+      return { error: "Data kunci tidak valid." };
+    }
 
-  const supabase = getSupabaseClient();
-  const publicKey = { kty: "EC", crv: "P-256", x: record.publicKey.x, y: record.publicKey.y };
-  try {
+    const acc = await findAccountById(userId);
+    if (!acc) throw new AuthError("Akun tidak ditemukan.");
+
+    // Saat mengganti/mereset kunci (replace === true), WAJIB verifikasi password / status wajah AI
+    if (replace) {
+      if (acc.password_hash) {
+        if (!password) return { error: "Password wajib diisi untuk mereset kunci enkripsi.", code: "PASSWORD_REQUIRED" };
+        const keys = [`pw:${acc.id}`, `ip:${await clientIpHash()}`];
+        const l = await isLocked(keys[0]);
+        if (l.locked) return { error: `Terlalu banyak percobaan. Coba lagi dalam ${Math.max(1, Math.ceil(l.retryAfterSec / 60))} menit.` };
+        const v = await verifyPassword(password, acc.password_hash);
+        if (!v.ok) {
+          await recordFailure(keys[0], LOGIN_POLICY);
+          await recordFailure(keys[1], IP_POLICY);
+          await audit(acc.id, "chat_key_reset_pass_failed");
+          return { error: "Password salah." };
+        }
+        await clearFailures(keys[0]);
+      } else if (hasFaceOf(acc)) {
+        if (!faceVerifiedToken || typeof faceVerifiedToken !== "string") {
+          return { error: "Verifikasi Wajah AI diperlukan untuk mereset kunci.", code: "FACE_REQUIRED" };
+        }
+        // Validasi dan konsumsi token status verifikasi wajah
+        const supabase = getSupabaseClient();
+        const { data: row } = await supabase
+          .from("auth_nonces")
+          .select("id, expires_at, used_at, user_id, session_id")
+          .eq("nonce_hash", tokenHash(faceVerifiedToken))
+          .eq("purpose", "chat_key_reset_face")
+          .maybeSingle();
+
+        if (
+          !row ||
+          row.used_at ||
+          row.user_id !== userId ||
+          row.session_id !== sess.sessionId ||
+          new Date(row.expires_at).getTime() < Date.now()
+        ) {
+          return { error: "Status verifikasi wajah tidak valid atau telah kedaluwarsa. Ulangi verifikasi wajah.", code: "FACE_INVALID" };
+        }
+
+        // Konsumsi token atomik
+        await supabase
+          .from("auth_nonces")
+          .update({ used_at: new Date().toISOString() })
+          .eq("id", row.id);
+      }
+
+      // Jika 2FA (TOTP) aktif, WAJIB verifikasi kode TOTP / recovery code
+      if (totpActiveOf(acc)) {
+        await assertTotpForAction(acc, totpCode);
+      }
+    }
+
+    const supabase = getSupabaseClient();
+    const publicKey = { kty: "EC", crv: "P-256", x: record.publicKey.x, y: record.publicKey.y };
+
     if (!replace) {
       const { error } = await supabase.from("chat_keys").insert({
         user_id: userId,
@@ -148,6 +257,7 @@ export async function publishChatKeyAction(body: {
         if (error.code === "42P01") return { error: "Tabel chat_keys belum ada." };
         return { error: error.message };
       }
+      await audit(userId, "chat_key_published");
       return { success: true, keyVersion: 1 };
     }
 
@@ -167,8 +277,7 @@ export async function publishChatKeyAction(body: {
       updated_at: new Date().toISOString(),
     });
     if (error) return { error: error.message };
+    await audit(userId, "chat_key_reset", { nextVersion });
     return { success: true, keyVersion: nextVersion };
-  } catch (err: any) {
-    return { error: err.message || "Gagal menyimpan kunci." };
-  }
+  });
 }
