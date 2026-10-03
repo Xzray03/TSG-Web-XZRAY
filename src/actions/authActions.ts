@@ -878,7 +878,7 @@ export async function loginTotpAction(body: { code: string }) {
 
 /* ============================ aksi sensitif ============================ */
 
-const STEPUP_PURPOSES = new Set(["delete_account", "change_password", "add_password", "set_email", "add_face", "approve_device", "enable_totp"]);
+const STEPUP_PURPOSES = new Set(["delete_account", "change_password", "add_password", "set_email", "add_face", "approve_device", "enable_totp", "reset_password"]);
 
 export async function getStepUpNonceAction(purpose: string) {
   return guarded(async () => {
@@ -941,6 +941,104 @@ export async function addPasswordAction(body: { newPassword: string; proof: Devi
       .is("password_hash", null);
     await audit(acc.id, "password_added");
     return { success: true, message: "Password berhasil ditambahkan." };
+  });
+}
+
+/**
+ * Verifikasi wajah khusus alur "Lupa Password": menghasilkan token status valid 2 menit.
+ * Klien hanya menerima STATUS token — vektor tidak pernah keluar dari verifikasi.
+ */
+export async function verifyFaceForPasswordResetAction(faceVectors: number[][]) {
+  return guarded(async () => {
+    const s = await getSession();
+    if (!s) return { error: "Sesi tidak valid.", code: "UNAUTHENTICATED" };
+    const acc = await findAccountById(s.userId);
+    if (!acc) throw new AuthError("Akun tidak ditemukan.");
+    if (!acc.password_hash) return { error: "Akun ini belum memiliki password." };
+    if (!hasFaceOf(acc)) return { error: "Wajah tidak terdaftar pada akun ini." };
+
+    const vectors = validateVectors(faceVectors);
+    if (!vectors) return { error: "Data wajah tidak valid." };
+    const template = await loadFaceTemplate(acc);
+    if (!template || !matchFace(template, vectors)) {
+      await audit(acc.id, "password_reset_face_failed");
+      return { error: "Verifikasi Wajah Gagal: Wajah tidak cocok dengan patokan akun." };
+    }
+
+    const token = randomToken(32);
+    await db().from("auth_nonces").insert({
+      user_id: acc.id,
+      session_id: s.sessionId,
+      purpose: "password_reset_face",
+      nonce_hash: tokenHash(token),
+      expires_at: new Date(Date.now() + 2 * 60 * 1000).toISOString(),
+    });
+
+    await audit(acc.id, "password_reset_face_passed");
+    return { success: true, faceVerifiedToken: token };
+  });
+}
+
+/**
+ * Reset password via token verifikasi wajah (alur "Lupa Password") tanpa password lama.
+ * Gate: konsumsi token wajah + device proof + TOTP/recovery code bila 2FA aktif.
+ */
+export async function resetPasswordWithFaceAction(body: {
+  faceVerifiedToken: string;
+  newPassword: string;
+  proof: DeviceProof;
+  totpCode?: string;
+}) {
+  return guarded(async () => {
+    const s = await requireSession();
+    const acc = await findAccountById(s.userId);
+    if (!acc) throw new AuthError("Akun tidak ditemukan.");
+    if (!acc.password_hash) return { error: "Akun ini belum memiliki password." };
+    if (!hasFaceOf(acc)) return { error: "Wajah tidak terdaftar pada akun ini." };
+
+    const policyErr = passwordPolicyError(body?.newPassword);
+    if (policyErr) return { error: policyErr };
+
+    // 1) Konsumsi token status verifikasi wajah (sekali pakai, terikat sesi).
+    if (!body?.faceVerifiedToken || typeof body.faceVerifiedToken !== "string") {
+      return { error: "Verifikasi Wajah AI diperlukan untuk mereset password.", code: "FACE_REQUIRED" };
+    }
+    const { data: row } = await db()
+      .from("auth_nonces")
+      .select("id, expires_at, used_at, user_id, session_id")
+      .eq("nonce_hash", tokenHash(body.faceVerifiedToken))
+      .eq("purpose", "password_reset_face")
+      .maybeSingle();
+    if (
+      !row ||
+      row.used_at ||
+      row.user_id !== acc.id ||
+      row.session_id !== s.sessionId ||
+      new Date(row.expires_at).getTime() < Date.now()
+    ) {
+      return { error: "Status verifikasi wajah tidak valid atau telah kedaluwarsa. Ulangi verifikasi wajah.", code: "FACE_INVALID" };
+    }
+    await db().from("auth_nonces").update({ used_at: new Date().toISOString() }).eq("id", row.id);
+
+    // 2) Bukti perangkat
+    await requireDeviceProof(ctxOf(s), "reset_password", body?.proof);
+
+    // 3) TOTP / recovery code bila 2FA aktif
+    if (totpActiveOf(acc)) {
+      await checkTotpForAction(acc, body?.totpCode);
+    }
+
+    const { error } = await db()
+      .from("user_accounts")
+      .update({ password_hash: await hashPassword(body.newPassword), updated_at: new Date().toISOString() })
+      .eq("id", acc.id)
+      .not("password_hash", "is", null);
+    if (error) return { error: "Gagal memperbarui password." };
+
+    // Sesi lain dicabut: hanya sesi ini yang bertahan setelah reset.
+    await revokeAllSessions(acc.id, s.sessionId);
+    await audit(acc.id, "password_reset_via_face");
+    return { success: true, message: "Password berhasil diperbarui." };
   });
 }
 

@@ -10,6 +10,7 @@ import {
   UserCheck,
   LogOut,
   AlertCircle,
+  AlertTriangle,
   Loader2,
   Check,
   Eye,
@@ -32,6 +33,7 @@ import {
 } from "@/actions/authActions";
 import { getStepUpProof } from "@/lib/stepUp";
 import { LoginVerifURLModal } from "@/components/auth/LoginVerifURLModal";
+import ForgotPasswordModal from "@/components/auth/ForgotPasswordModal";
 import TotpEnrollmentModal from "@/components/auth/TotpEnrollmentModal";
 import TotpPromptModal from "@/components/auth/TotpPromptModal";
 import TotpRecoveryCodesModal from "@/components/auth/TotpRecoveryCodesModal";
@@ -123,6 +125,9 @@ export default function ManageAccountModal({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMsg, setErrorMsg] = useState("");
   const [successMsg, setSuccessMsg] = useState("");
+
+  // Modal Lupa Password (verifikasi wajah + TOTP → password baru + captcha)
+  const [isForgotPwOpen, setIsForgotPwOpen] = useState(false);
 
   // ConfirmationURL Pop-up states for Password Reset
   const [isConfirmationModalOpen, setIsConfirmationModalOpen] = useState(false);
@@ -794,18 +799,34 @@ export default function ManageAccountModal({
                 )}
 
                 {hasPassword && activeForm !== "reset_password" && (
-                  <button
-                    type="button"
-                    disabled={isLoadingStatus}
-                    onClick={() => {
-                      setActiveForm("reset_password");
-                      setErrorMsg("");
-                    }}
-                    className="py-2.5 px-3 rounded-xl bg-slate-800 hover:bg-slate-700 border border-white/15 text-white/90 text-xs font-semibold flex items-center justify-center gap-1.5 transition cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed disabled:pointer-events-none"
-                  >
-                    <KeyRound className="w-3.5 h-3.5 text-blue-400" />
-                    <span>Reset Password</span>
-                  </button>
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      disabled={isLoadingStatus}
+                      onClick={() => {
+                        setActiveForm("reset_password");
+                        setErrorMsg("");
+                      }}
+                      className="py-2.5 px-3 rounded-xl bg-slate-800 hover:bg-slate-700 border border-white/15 text-white/90 text-xs font-semibold flex items-center justify-center gap-1.5 transition cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed disabled:pointer-events-none"
+                    >
+                      <KeyRound className="w-3.5 h-3.5 text-blue-400" />
+                      <span>Reset Password</span>
+                    </button>
+                    {hasFace && (
+                      <button
+                        type="button"
+                        disabled={isLoadingStatus}
+                        onClick={() => {
+                          setIsForgotPwOpen(true);
+                          setErrorMsg("");
+                        }}
+                        className="py-2.5 px-3 rounded-xl bg-amber-500/20 hover:bg-amber-500/30 border border-amber-500/30 text-amber-300 text-xs font-semibold flex items-center justify-center gap-1.5 transition cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed disabled:pointer-events-none"
+                      >
+                        <AlertTriangle className="w-3.5 h-3.5" />
+                        <span>Lupa Password</span>
+                      </button>
+                    )}
+                  </div>
                 )}
 
                 {!hasFace && (
@@ -1242,6 +1263,19 @@ export default function ManageAccountModal({
         onActivated={() => {
           fetchStatus();
           setSuccessMsg("2FA berhasil diaktifkan!");
+        }}
+      />
+
+      {/* Modal Lupa Password */}
+      <ForgotPasswordModal
+        isOpen={isForgotPwOpen}
+        userName={userName}
+        hasTotp={hasTotp}
+        onClose={() => setIsForgotPwOpen(false)}
+        onSuccess={() => {
+          setSuccessMsg("Password berhasil diperbarui via Lupa Password.");
+          onRefreshProfile();
+          fetchStatus();
         }}
       />
 

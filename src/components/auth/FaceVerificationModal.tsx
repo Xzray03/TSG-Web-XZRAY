@@ -18,6 +18,8 @@ import { getStepUpProof } from "@/lib/stepUp";
 interface FaceVerificationModalProps {
   isOpen: boolean;
   mode: "register" | "login" | "reauth";
+  /** Tujuan re-auth: reset kunci chat (default) atau lupa password. */
+  reauthAction?: "chat_key" | "password_reset";
   storedFaceVectors?: Array<number[]>; // tidak dipakai lagi (server tidak pernah mengirim vektor)
   /** Password saat ini; wajib pada mode "register" (menambah wajah ke akun yang sedang login). */
   addFacePassword?: string;
@@ -43,6 +45,7 @@ async function parseJsonResponse(res: Response) {
 export default function FaceVerificationModal({
   isOpen,
   mode,
+  reauthAction = "chat_key",
   addFacePassword = "",
   initialName = "",
   isTsgMember = false,
@@ -405,9 +408,15 @@ export default function FaceVerificationModal({
                         throw new Error(data?.error || "Gagal menyimpan pendaftaran wajah.");
                       }
                     } else if (mode === "reauth") {
-                      // Re-auth wajah untuk reset chat key: hanya STATUS token yang keluar dari modal.
-                      const { verifyFaceForChatKeyResetAction } = await import("@/actions/chatKeyActions");
-                      const data: any = await verifyFaceForChatKeyResetAction(fourVectors);
+                      // Re-auth wajah (reset kunci chat / lupa password): hanya STATUS token yang keluar dari modal.
+                      let data: any;
+                      if (reauthAction === "password_reset") {
+                        const { verifyFaceForPasswordResetAction } = await import("@/actions/authActions");
+                        data = await verifyFaceForPasswordResetAction(fourVectors);
+                      } else {
+                        const { verifyFaceForChatKeyResetAction } = await import("@/actions/chatKeyActions");
+                        data = await verifyFaceForChatKeyResetAction(fourVectors);
+                      }
                       if (!data?.success) {
                         throw new Error(data?.error || "Verifikasi Wajah Gagal: Wajah tidak cocok.");
                       }
@@ -500,7 +509,9 @@ export default function FaceVerificationModal({
             <p className="text-sm text-white/60 text-center">
               {mode === "register"
                 ? "Pendaftaran wajah berhasil disimpan. Memuat profil..."
-                : "Wajah Anda cocok dengan histori. Memuat profil..."}
+                : mode === "reauth" && reauthAction === "password_reset"
+                  ? "Wajah terverifikasi. Lanjutkan ke pemasangan password baru..."
+                  : "Wajah Anda cocok dengan histori. Memuat profil..."}
             </p>
           </div>
         ) : step === "SYNCING" ? (
